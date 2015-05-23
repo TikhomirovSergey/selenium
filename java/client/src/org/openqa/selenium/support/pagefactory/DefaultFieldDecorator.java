@@ -66,7 +66,7 @@ public class DefaultFieldDecorator implements FieldDecorator {
     }
   }
 
-  private boolean isDecoratableList(Field field) {
+  protected boolean isDecoratableList(Field field) {
     if (!List.class.isAssignableFrom(field.getType())) {
       return false;
     }
@@ -81,12 +81,6 @@ public class DefaultFieldDecorator implements FieldDecorator {
     Type listType = ((ParameterizedType) genericType).getActualTypeArguments()[0];
 
     if (!WebElement.class.equals(listType)) {
-      return false;
-    }
-
-    if (field.getAnnotation(FindBy.class) == null &&
-        field.getAnnotation(FindBys.class) == null &&
-        field.getAnnotation(FindAll.class) == null) {
       return false;
     }
 
