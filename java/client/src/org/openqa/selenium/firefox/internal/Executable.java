@@ -25,7 +25,7 @@ import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.os.CommandLine;
 import org.openqa.selenium.os.WindowsUtils;
-import org.openqa.selenium.remote.internal.CircularOutputStream;
+import org.openqa.selenium.io.CircularOutputStream;
 
 import java.io.File;
 import java.io.OutputStream;
@@ -160,6 +160,10 @@ public class Executable {
 
     } else if (current.is(MAC)) {
       binary = new File("/Applications/Firefox.app/Contents/MacOS/firefox-bin");
+      // fall back to homebrew install location if default is not found
+      if (!binary.exists()) {
+        binary = new File(System.getProperty("user.home") + binary.getAbsolutePath());
+      }
     }
 
     if (binary != null && binary.exists()) {

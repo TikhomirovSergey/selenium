@@ -16,7 +16,6 @@
 // limitations under the License.
 // </copyright>
 
-using System;
 using OpenQA.Selenium.Safari.Internal.Handlers;
 
 namespace OpenQA.Selenium.Safari.Internal
@@ -55,13 +54,13 @@ namespace OpenQA.Selenium.Safari.Internal
 
             throw new WebSocketException(WebSocketStatusCodes.UnsupportedDataType, "Unsupported protocol version.");
         }
-        
+
         /// <summary>
         /// Gets the version of an <see cref="WebSocketHttpRequest"/>.
         /// </summary>
         /// <param name="request">The <see cref="WebSocketHttpRequest"/> to get the protocol version of.</param>
         /// <returns>A string containing the version of the protocol of the request.</returns>
-        public static string GetVersion(WebSocketHttpRequest request) 
+        public static string GetVersion(WebSocketHttpRequest request)
         {
             string version;
             if (request.Headers.TryGetValue("Sec-WebSocket-Version", out version))

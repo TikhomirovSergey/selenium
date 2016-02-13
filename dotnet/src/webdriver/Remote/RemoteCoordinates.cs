@@ -17,8 +17,6 @@
 // </copyright>
 
 using System;
-using System.Collections.Generic;
-using System.Text;
 using OpenQA.Selenium.Interactions.Internal;
 
 namespace OpenQA.Selenium.Remote
@@ -39,7 +37,6 @@ namespace OpenQA.Selenium.Remote
             this.element = element;
         }
 
-        #region ICoordinates Members
         /// <summary>
         /// Gets the location of an element in absolute screen coordinates.
         /// </summary>
@@ -71,6 +68,5 @@ namespace OpenQA.Selenium.Remote
         {
             get { return this.element.InternalElementId; }
         }
-        #endregion
     }
 }

@@ -98,6 +98,8 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
   private Logs remoteLogs;
   private LocalLogs localLogs;
 
+  private int w3cComplianceLevel = 0;
+
   // For cglib
   protected RemoteWebDriver() {
     init(new DesiredCapabilities(), null);
@@ -157,7 +159,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
   }
 
   public int getW3CStandardComplianceLevel() {
-    return 0;
+    return w3cComplianceLevel;
   }
 
   private void init(Capabilities desiredCapabilities, Capabilities requiredCapabilities) {
@@ -272,6 +274,9 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
 
     capabilities = returnedCapabilities;
     sessionId = new SessionId(response.getSessionId());
+    if (response.getStatus() == null) {
+      w3cComplianceLevel = 1;
+    }
   }
 
   /**
@@ -318,7 +323,12 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
   }
 
   public String getCurrentUrl() {
-    return execute(DriverCommand.GET_CURRENT_URL).getValue().toString();
+    Response response = execute(DriverCommand.GET_CURRENT_URL);
+    if (response == null || response.getValue() == null) {
+      throw new WebDriverException("Remote browser did not respond to getCurrentUrl");
+    } else {
+      return response.getValue().toString();
+    }
   }
 
   public <X> X getScreenshotAs(OutputType<X> outputType) throws WebDriverException {
@@ -522,18 +532,26 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
 
   @SuppressWarnings({"unchecked"})
   public Set<String> getWindowHandles() {
-    Response response = execute(DriverCommand.GET_WINDOW_HANDLES);
+    Response response;
+    if (getW3CStandardComplianceLevel() > 0) {
+      response = execute(DriverCommand.GET_WINDOW_HANDLES_W3C);
+    } else {
+      response = execute(DriverCommand.GET_WINDOW_HANDLES);
+    }
     Object value = response.getValue();
     try {
       List<String> returnedValues = (List<String>) value;
       return new LinkedHashSet<String>(returnedValues);
     } catch (ClassCastException ex) {
       throw new WebDriverException(
-          "Returned value cannot be converted to List<String>: " + value, ex);
+        "Returned value cannot be converted to List<String>: " + value, ex);
     }
   }
 
   public String getWindowHandle() {
+    if (getW3CStandardComplianceLevel() > 0) {
+      return String.valueOf(execute(DriverCommand.GET_CURRENT_WINDOW_HANDLE_W3C).getValue());
+    }
     return String.valueOf(execute(DriverCommand.GET_CURRENT_WINDOW_HANDLE).getValue());
   }
 
@@ -553,6 +571,9 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
         "script", script,
         "args", Lists.newArrayList(convertedArgs));
 
+    if (getW3CStandardComplianceLevel() > 0) {
+      return execute(DriverCommand.EXECUTE_SCRIPT_W3C, params).getValue();
+    }
     return execute(DriverCommand.EXECUTE_SCRIPT, params).getValue();
   }
 
@@ -571,6 +592,9 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
     Map<String, ?> params = ImmutableMap.of(
         "script", script, "args", Lists.newArrayList(convertedArgs));
 
+    if (getW3CStandardComplianceLevel() > 0) {
+      return execute(DriverCommand.EXECUTE_ASYNC_SCRIPT_W3C, params).getValue();
+    }
     return execute(DriverCommand.EXECUTE_ASYNC_SCRIPT, params).getValue();
   }
 
@@ -638,7 +662,14 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
         errorMessage = "Could not start a new session. Possible causes are " +
             "invalid address of the remote server or browser start-up failure.";
       }
-      throw new UnreachableBrowserException(errorMessage, e);
+      UnreachableBrowserException ube = new UnreachableBrowserException(errorMessage, e);
+      if (getSessionId() != null) {
+        ube.addInfo(WebDriverException.SESSION_ID, getSessionId().toString());
+      }
+      if (getCapabilities() != null) {
+        ube.addInfo("Capabilities", getCapabilities().toString());
+      }
+      throw ube;
     } finally {
       Thread.currentThread().setName(currentName);
     }
@@ -688,6 +719,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
    * @param sessionId   the session id.
    * @param commandName the command that is being executed.
    * @param toLog       any data that might be interesting.
+   * @param when        verb tense of "Execute" to prefix message
    */
   protected void log(SessionId sessionId, String commandName, Object toLog, When when) {
     String text = "" + toLog;
@@ -745,15 +777,21 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
     public Set<Cookie> getCookies() {
       Object returned = execute(DriverCommand.GET_ALL_COOKIES).getValue();
 
+      Set<Cookie> toReturn = new HashSet<>();
+
       List<Map<String, Object>> cookies =
           new JsonToBeanConverter().convert(List.class, returned);
-      Set<Cookie> toReturn = new HashSet<>();
+      if (cookies == null) {
+        return toReturn;
+      }
+
       for (Map<String, Object> rawCookie : cookies) {
         String name = (String) rawCookie.get("name");
         String value = (String) rawCookie.get("value");
         String path = (String) rawCookie.get("path");
         String domain = (String) rawCookie.get("domain");
         boolean secure = rawCookie.containsKey("secure") && (Boolean) rawCookie.get("secure");
+        boolean httpOnly = rawCookie.containsKey("httpOnly") && (Boolean) rawCookie.get("httpOnly");
 
         Number expiryNum = (Number) rawCookie.get("expiry");
         Date expiry = expiryNum == null ? null : new Date(
@@ -763,6 +801,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
             .path(path)
             .domain(domain)
             .isSecure(secure)
+            .isHttpOnly(httpOnly)
             .expiresOn(expiry)
             .build());
       }
@@ -909,6 +948,10 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
           execute(DriverCommand.MAXIMIZE_CURRENT_WINDOW);
         }
       }
+
+      public void fullscreen() {
+        execute(DriverCommand.FULLSCREEN_CURRENT_WINDOW);
+      }
     }
   }
 
@@ -1014,19 +1057,34 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
     }
 
     public void dismiss() {
-      execute(DriverCommand.DISMISS_ALERT);
+      if (getW3CStandardComplianceLevel() > 0) {
+        execute(DriverCommand.DISMISS_ALERT_W3C);
+      } else {
+        execute(DriverCommand.DISMISS_ALERT);
+      }
     }
 
     public void accept() {
-      execute(DriverCommand.ACCEPT_ALERT);
+      if (getW3CStandardComplianceLevel() > 0) {
+        execute(DriverCommand.ACCEPT_ALERT_W3C);
+      } else {
+        execute(DriverCommand.ACCEPT_ALERT);
+      }
     }
 
     public String getText() {
+      if (getW3CStandardComplianceLevel() > 0) {
+        return (String) execute(DriverCommand.GET_ALERT_TEXT_W3C).getValue();
+      }
       return (String) execute(DriverCommand.GET_ALERT_TEXT).getValue();
     }
 
     public void sendKeys(String keysToSend) {
-      execute(DriverCommand.SET_ALERT_VALUE, ImmutableMap.of("text", keysToSend));
+      if (getW3CStandardComplianceLevel() > 0) {
+        execute(DriverCommand.SET_ALERT_VALUE_W3C, ImmutableMap.of("text", keysToSend));
+      } else {
+        execute(DriverCommand.SET_ALERT_VALUE, ImmutableMap.of("text", keysToSend));
+      }
     }
 
     @Beta
@@ -1049,7 +1107,7 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
      *
      * Usage: driver.switchTo().alert().authenticateUsing(new UsernamePasswordCredentials("cheese",
      *        "secretGouda"));
-     * @param credentials
+     * @param credentials credentials to pass to Auth prompt
      */
     @Beta
     public void authenticateUsing(Credentials credentials) {

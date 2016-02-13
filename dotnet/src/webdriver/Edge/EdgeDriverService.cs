@@ -17,10 +17,6 @@
 // </copyright>
 
 using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Text;
 using OpenQA.Selenium.Internal;
 
 namespace OpenQA.Selenium.Edge
@@ -32,13 +28,9 @@ namespace OpenQA.Selenium.Edge
     {
         private const string MicrosoftWebDriverServiceFileName = "MicrosoftWebDriver.exe";
         private static readonly Uri MicrosoftWebDriverDownloadUrl = new Uri("http://go.microsoft.com/fwlink/?LinkId=619687");
-        private string logPath = string.Empty;
-        private string urlPathPrefix = string.Empty;
-        private string portServerAddress = string.Empty;
-
 
         /// <summary>
-        /// Initializes a new instance of the EdgeDriverService class.
+        /// Initializes a new instance of the <see cref="EdgeDriverService"/> class.
         /// </summary>
         /// <param name="executablePath">The full path to the EdgeDriver executable.</param>
         /// <param name="executableFileName">The file name of the EdgeDriver executable.</param>
@@ -76,7 +68,7 @@ namespace OpenQA.Selenium.Edge
         /// <returns>A EdgeDriverService using a random port.</returns>
         public static EdgeDriverService CreateDefaultService(string driverPath, string driverExecutableFileName)
         {
-            return new EdgeDriverService(driverPath, driverExecutableFileName, PortUtilities.FindFreePort());
+            return CreateDefaultService(driverPath, driverExecutableFileName, PortUtilities.FindFreePort());
         }
 
         /// <summary>
@@ -85,7 +77,7 @@ namespace OpenQA.Selenium.Edge
         /// <param name="driverPath">The directory containing the EdgeDriver executable.</param>
         /// <param name="driverExecutableFileName">The name of the EdgeDriver executable file</param>
         /// <param name="port">The port number on which the driver will listen</param>
-        /// <returns></returns>
+        /// <returns>A EdgeDriverService using the specified port.</returns>
         public static EdgeDriverService CreateDefaultService(string driverPath, string driverExecutableFileName, int port)
         {
             return new EdgeDriverService(driverPath, driverExecutableFileName, port);

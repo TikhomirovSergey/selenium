@@ -18,8 +18,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
 using OpenQA.Selenium.Remote;
@@ -40,10 +38,15 @@ namespace OpenQA.Selenium.Safari
         /// <summary>
         /// Initializes a new instance of the <see cref="SafariDriverConnection"/> class.
         /// </summary>
-        /// <param name="connection">An <see cref="IWebSocketConnection"/> representing a 
+        /// <param name="connection">An <see cref="IWebSocketConnection"/> representing a
         /// connection using the WebSockets protocol.</param>
         public SafariDriverConnection(IWebSocketConnection connection)
         {
+            if (connection == null)
+            {
+                throw new ArgumentNullException("connection", "WebSocket connection must not be null");
+            }
+
             this.connection = connection;
             this.connection.MessageReceived += new EventHandler<TextMessageHandledEventArgs>(this.ConnectionMessageReceivedEventHandler);
             this.connection.Closed += new EventHandler<ConnectionEventArgs>(this.ConnectionClosedEventHandler);
@@ -84,7 +87,7 @@ namespace OpenQA.Selenium.Safari
                         if (response.Value is string)
                         {
                             // First, collapse all \r\n pairs to \n, then replace all \n with
-                            // System.Environment.NewLine. This ensures the consistency of 
+                            // System.Environment.NewLine. This ensures the consistency of
                             // the values.
                             response.Value = ((string)response.Value).Replace("\r\n", "\n").Replace("\n", System.Environment.NewLine);
                         }

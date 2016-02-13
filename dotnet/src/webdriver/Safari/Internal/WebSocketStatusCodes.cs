@@ -16,7 +16,6 @@
 // limitations under the License.
 // </copyright>
 
-using System;
 using System.Collections.ObjectModel;
 
 namespace OpenQA.Selenium.Safari.Internal
@@ -85,12 +84,12 @@ namespace OpenQA.Selenium.Safari.Internal
         /// Indicates a TLS handshake.
         /// </summary>
         public const ushort TlsHandshake = 1015;
-        
+
         /// <summary>
         /// Indicates an application error.
         /// </summary>
         public const ushort ApplicationError = 3000;
-        
+
         /// <summary>
         /// A collection of all of the status codes indicating a valid closing of the connection.
         /// </summary>

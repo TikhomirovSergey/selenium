@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using NUnit.Framework;
 
 namespace OpenQA.Selenium
@@ -12,13 +9,13 @@ namespace OpenQA.Selenium
         private const string FileHtml = "<div>" + LoremIpsumText + "</div>";
         private System.IO.FileInfo testFile;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void Setup()
         {
             CreateTempFile(FileHtml);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void Teardown()
         {
             if (testFile != null && testFile.Exists)

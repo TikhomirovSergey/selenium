@@ -18,8 +18,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace OpenQA.Selenium.Safari.Internal.Handlers
 {
@@ -56,10 +54,10 @@ namespace OpenQA.Selenium.Safari.Internal.Handlers
         /// <summary>
         /// Processes data received by the connection.
         /// </summary>
-        /// <param name="data">The data to be processed.</param>
-        public void ProcessData(IEnumerable<byte> data)
+        /// <param name="dataToProcess">The data to be processed.</param>
+        public void ProcessData(IEnumerable<byte> dataToProcess)
         {
-            this.data.AddRange(data);
+            this.data.AddRange(dataToProcess);
 
             this.ProcessReceivedData();
         }

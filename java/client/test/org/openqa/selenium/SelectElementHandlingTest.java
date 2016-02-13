@@ -23,7 +23,7 @@ import org.openqa.selenium.testing.JUnit4TestBase;
 
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.openqa.selenium.testing.Ignore.Driver.MARIONETTE;
+import static org.openqa.selenium.testing.Driver.MARIONETTE;
 
 import static org.hamcrest.Matchers.is;
 
@@ -125,5 +125,14 @@ public class SelectElementHandlingTest extends JUnit4TestBase {
     driver.get(pages.formPage);
     WebElement element = driver.findElement(By.id("optionEmptyValueSet"));
     assertThat(element.getAttribute("value"), is(""));
+  }
+
+  @Test
+  @Ignore(MARIONETTE)
+  public void testCanSelectFromMultipleSelectWhereValueIsBelowVisibleRange() {
+    driver.get(pages.selectPage);
+    WebElement option = driver.findElements(By.cssSelector("#selectWithMultipleLongList option")).get(4);
+    option.click();
+    assertThat(option.isSelected(), is(true));
   }
 }

@@ -462,10 +462,16 @@ nsCommandProcessor.prototype.execute = function(jsonCommandString,
     return;
   }
 
-  var contentWindow = sessionWindow.getBrowser().contentWindow;
-  if (!contentWindow) {
-    response.sendError(new WebDriverError(bot.ErrorCode.NO_SUCH_WINDOW,
+  try {
+    var contentWindow = sessionWindow.getBrowser().contentWindow;
+    if (!contentWindow) {
+      response.sendError(new WebDriverError(bot.ErrorCode.NO_SUCH_WINDOW,
         'Window not found. The browser window may have been closed.'));
+      return;
+    }
+  } catch (ff45) {
+    response.sendError(new WebDriverError(bot.ErrorCode.NO_SUCH_WINDOW,
+      'Window not found. The browser window may have been closed.'));
     return;
   }
 
@@ -543,10 +549,6 @@ nsCommandProcessor.prototype.switchToWindow = function(response, parameters,
 
   var windowFound = this.searchWindows_('navigator:browser', function(win) {
     if (matches(win, lookFor)) {
-      // Create a switch indicator file so the native events library
-      // will know a window switch is in progress and will indeed
-      // switch focus.
-      notifyOfSwitchToWindow(win.top.fxdriver.id);
       win.focus();
       if (win.top.fxdriver) {
         response.session.setChromeWindow(win.top);
@@ -746,7 +748,7 @@ nsCommandProcessor.prototype.getSessionCapabilities = function(response) {
     'browserName': 'firefox',
     'handlesAlerts': true,
     'javascriptEnabled': true,
-    'nativeEvents': Utils.useNativeEvents(),
+    'nativeEvents': false,
     // See https://developer.mozilla.org/en/OS_TARGET
     'platform': (xulRuntime.OS == 'WINNT' ? 'WINDOWS' : xulRuntime.OS),
     'rotatable': false,
@@ -757,14 +759,18 @@ nsCommandProcessor.prototype.getSessionCapabilities = function(response) {
   var prefStore = fxdriver.moz.getService('@mozilla.org/preferences-service;1',
       'nsIPrefService');
   for (var cap in wdSessionStoreService.CAPABILITY_PREFERENCE_MAPPING) {
-    if (cap == 'nativeEvents') continue;
     var pref = wdSessionStoreService.CAPABILITY_PREFERENCE_MAPPING[cap];
     try {
       response.value[cap] = prefStore.getBoolPref(pref);
     } catch (e) {
-      // An exception is thrown if the saught preference is not available.
-      // For instance, a Firefox version not supporting HTML5 will not have
-      // a preference for webStorageEnabled.
+      try {
+        response.value[cap] = prefStore.getIntPref(pref);
+      } catch (e) {
+        try {
+          response.value[cap] = prefStore.getCharPref(pref);
+        } catch (e) {
+        }
+      }
     }
   }
 

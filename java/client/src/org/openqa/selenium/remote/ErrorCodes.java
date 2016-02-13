@@ -248,11 +248,12 @@ public class ErrorCodes {
     return statusCode != SUCCESS && statusCode != UNHANDLED_ERROR;
   }
 
-  public static String toState(int status) {
+  public static String toState(Integer status) {
     return statusToState.get(status);
   }
 
   public static int toStatus(String state) {
-    return stateToStatus.get(state);
+    Integer status = stateToStatus.get(state);
+    return status != null ? status : UNHANDLED_ERROR;
   }
 }

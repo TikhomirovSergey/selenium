@@ -1,10 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
 using NUnit.Framework;
 using System.Drawing;
 using System.Text.RegularExpressions;
-using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Environment;
 
 namespace OpenQA.Selenium.Interactions
@@ -68,7 +65,7 @@ namespace OpenQA.Selenium.Interactions
                     {
                         return null;
                     }
-                });
+                }, "Element with ID 'test1' not found");
 
             IWebElement img2 = driver.FindElement(By.Id("test2"));
             new Actions(driver).DragAndDrop(img2, img1).Perform();

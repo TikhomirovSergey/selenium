@@ -24,29 +24,25 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 import static org.openqa.selenium.WaitingConditions.elementValueToEqual;
-import static org.openqa.selenium.testing.Ignore.Driver.ALL;
-import static org.openqa.selenium.testing.Ignore.Driver.FIREFOX;
-import static org.openqa.selenium.testing.Ignore.Driver.HTMLUNIT;
-import static org.openqa.selenium.testing.Ignore.Driver.IE;
-import static org.openqa.selenium.testing.Ignore.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Ignore.Driver.PHANTOMJS;
-import static org.openqa.selenium.testing.Ignore.Driver.SAFARI;
+import static org.openqa.selenium.testing.Driver.CHROME;
+import static org.openqa.selenium.testing.Driver.HTMLUNIT;
+import static org.openqa.selenium.testing.Driver.IE;
+import static org.openqa.selenium.testing.Driver.MARIONETTE;
+import static org.openqa.selenium.testing.Driver.PHANTOMJS;
+import static org.openqa.selenium.testing.Driver.SAFARI;
 import static org.openqa.selenium.testing.TestUtilities.getEffectivePlatform;
 import static org.openqa.selenium.testing.TestUtilities.getFirefoxVersion;
 import static org.openqa.selenium.testing.TestUtilities.isFirefox;
-import static org.openqa.selenium.testing.TestUtilities.isNativeEventsEnabled;
+
+import com.google.common.base.Joiner;
 
 import org.junit.Test;
-import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.JavascriptEnabled;
 import org.openqa.selenium.testing.NotYetImplemented;
 import org.openqa.selenium.testing.drivers.Browser;
-
-import com.google.common.base.Joiner;
 
 public class TypingTest extends JUnit4TestBase {
 
@@ -245,9 +241,7 @@ public class TypingTest extends JUnit4TestBase {
   }
 
   @JavascriptEnabled
-  @Ignore(value = {FIREFOX, IE},
-          reason = "firefox specific not yet tested in htmlunit. Firefox demands to have the "
-                   + "focus on the window already.")
+  @Ignore(value = {IE})
   @Test
   public void testShouldFireFocusKeyEventsInTheRightOrder() {
     driver.get(pages.javascriptPage);
@@ -572,10 +566,6 @@ public class TypingTest extends JUnit4TestBase {
   public void testChordControlCutAndPaste() {
     assumeFalse("FIXME: macs don't have HOME keys, would PGUP work?",
                 getEffectivePlatform().is(Platform.MAC));
-    assumeFalse("FIXME: Fails in Firefox on Linux with native events",
-                isFirefox(driver) &&
-                isNativeEventsEnabled(driver) &&
-                getEffectivePlatform().is(Platform.LINUX));
 
     driver.get(pages.javascriptPage);
 
@@ -641,12 +631,11 @@ public class TypingTest extends JUnit4TestBase {
   }
 
   @JavascriptEnabled
-  @Ignore(value = {PHANTOMJS})
+  @Ignore(value = {PHANTOMJS, MARIONETTE})
   @NotYetImplemented(HTMLUNIT)
   @Test
   public void testGenerateKeyPressEventEvenWhenElementPreventsDefault() {
     assumeFalse(isFirefox(driver) && getFirefoxVersion(driver) < 25);
-    assumeTrue(((HasCapabilities)driver).getCapabilities().is(CapabilityType.HAS_NATIVE_EVENTS));
     driver.get(pages.javascriptPage);
 
     WebElement silent = driver.findElement(By.name("suppress"));
@@ -654,50 +643,6 @@ public class TypingTest extends JUnit4TestBase {
 
     silent.sendKeys("s");
     assertThat(result.getText().trim(), is(""));
-  }
-
-  @JavascriptEnabled
-  @Ignore(value = {SAFARI, MARIONETTE}, reason = "Safari: cannot type on contentEditable with synthetic events")
-  @NoDriverAfterTest // So that next test never starts with "inside a frame" base state.
-  @Test
-  public void testTypingIntoAnIFrameWithContentEditableOrDesignModeSet() {
-    driver.get(pages.richTextPage);
-
-    driver.switchTo().frame("editFrame");
-    WebElement element = driver.switchTo().activeElement();
-    element.sendKeys("Fishy");
-
-    driver.switchTo().defaultContent();
-    WebElement trusted = driver.findElement(By.id("istrusted"));
-    WebElement id = driver.findElement(By.id("tagId"));
-
-    assertThat(trusted.getText(), anyOf(
-        equalTo("[true]"),
-        // Chrome does not set a trusted flag.
-        equalTo("[n/a]"),
-        equalTo("[]")));
-    assertThat(id.getText(), anyOf(equalTo("[frameHtml]"), equalTo("[theBody]")));
-  }
-
-  @JavascriptEnabled
-  @NotYetImplemented(HTMLUNIT)
-  @NoDriverAfterTest // So that next test never starts with "inside a frame" base state.
-  @Test
-  @Ignore(MARIONETTE)
-  public void testNonPrintableCharactersShouldWorkWithContentEditableOrDesignModeSet() {
-    assumeFalse("FIXME: Fails in Firefox on Linux with synthesized events",
-                isFirefox(driver) &&
-                !isNativeEventsEnabled(driver) &&
-                (getEffectivePlatform().is(Platform.LINUX) || getEffectivePlatform().is(Platform.MAC)));
-
-    driver.get(pages.richTextPage);
-
-    driver.switchTo().frame("editFrame");
-    WebElement element = driver.switchTo().activeElement();
-    element.sendKeys("Dishy", Keys.BACK_SPACE, Keys.LEFT, Keys.LEFT);
-    element.sendKeys(Keys.LEFT, Keys.LEFT, "F", Keys.DELETE, Keys.END, "ee!");
-
-    assertEquals("Fishee!", element.getText());
   }
 
   @JavascriptEnabled
@@ -716,50 +661,6 @@ public class TypingTest extends JUnit4TestBase {
     WebElement email = driver.findElement(By.id("age"));
     email.sendKeys("33");
     assertThat(email.getAttribute("value"), equalTo("33"));
-  }
-
-  @Ignore(value = {SAFARI, HTMLUNIT}, reason = "Untested browsers;" +
-      " Safari: cannot type on contentEditable with synthetic events",
-      issues = {3127})
-  @Test
-  public void testShouldBeAbleToTypeIntoEmptyContentEditableElement() {
-    driver.get(pages.readOnlyPage);
-    WebElement editable = driver.findElement(By.id("content-editable"));
-
-    editable.clear();
-    editable.sendKeys("cheese"); // requires focus on OS X
-
-    assertThat(editable.getText(), equalTo("cheese"));
-  }
-
-  @Ignore(value = {ALL}, reason = "Untested except in Firefox", issues = {2825})
-  @Test
-  public void testShouldBeAbleToTypeIntoContentEditableElementWithExistingValue() {
-    driver.get(pages.readOnlyPage);
-    WebElement editable = driver.findElement(By.id("content-editable"));
-
-    String initialText = editable.getText();
-    editable.sendKeys(", edited");
-
-    assertThat(editable.getText(), equalTo(initialText + ", edited"));
-  }
-
-  @Ignore(value = {IE, SAFARI, HTMLUNIT, MARIONETTE},
-          reason = "Untested browsers;" +
-                   " Safari: cannot type on contentEditable with synthetic events",
-          issues = {3127})
-  @NoDriverAfterTest // So that next test never starts with "inside a frame" base state.
-  @Test
-  public void testShouldBeAbleToTypeIntoTinyMCE() {
-    driver.get(appServer.whereIs("tinymce.html"));
-    driver.switchTo().frame("mce_0_ifr");
-
-    WebElement editable = driver.findElement(By.id("tinymce"));
-
-    editable.clear();
-    editable.sendKeys("cheese"); // requires focus on OS X
-
-    assertThat(editable.getText(), equalTo("cheese"));
   }
 
   @JavascriptEnabled
@@ -791,6 +692,17 @@ public class TypingTest extends JUnit4TestBase {
         "keydown (target)",
         "a pressed; removing");
     assertThat(getValueText(log), anyOf(equalTo(expected), equalTo(expected + "\nkeyup (body)")));
+  }
+
+  @Test
+  @Ignore(value = {HTMLUNIT, MARIONETTE, CHROME}, reason = "Failed with JS enabled, passed otherwise")
+  public void canClearNumberInputAfterTypingInvalidInput() {
+    driver.get(pages.formPage);
+    WebElement input = driver.findElement(By.id("age"));
+    input.sendKeys("e");
+    input.clear();
+    input.sendKeys("3");
+    assertEquals("3", input.getAttribute("value"));
   }
 
   private static String getValueText(WebElement el) {

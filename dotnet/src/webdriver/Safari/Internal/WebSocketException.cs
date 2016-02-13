@@ -18,7 +18,6 @@
 
 using System;
 using System.Runtime.Serialization;
-using System.Security.Permissions;
 
 namespace OpenQA.Selenium.Safari.Internal
 {
@@ -102,11 +101,11 @@ namespace OpenQA.Selenium.Safari.Internal
             : base(info, context)
         {
         }
-        
+
         /// <summary>
         /// Gets the status code.
         /// </summary>
-        public int StatusCode 
+        public int StatusCode
         {
             get { return this.statusCode; }
         }

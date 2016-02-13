@@ -29,14 +29,12 @@ import static org.openqa.selenium.support.ui.ExpectedConditions.frameToBeAvailab
 import static org.openqa.selenium.support.ui.ExpectedConditions.not;
 import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
-import static org.openqa.selenium.testing.Ignore.Driver.ALL;
-import static org.openqa.selenium.testing.Ignore.Driver.CHROME;
-import static org.openqa.selenium.testing.Ignore.Driver.FIREFOX;
-import static org.openqa.selenium.testing.Ignore.Driver.HTMLUNIT;
-import static org.openqa.selenium.testing.Ignore.Driver.IE;
-import static org.openqa.selenium.testing.Ignore.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Ignore.Driver.PHANTOMJS;
-import static org.openqa.selenium.testing.Ignore.Driver.SAFARI;
+import static org.openqa.selenium.testing.Driver.CHROME;
+import static org.openqa.selenium.testing.Driver.HTMLUNIT;
+import static org.openqa.selenium.testing.Driver.IE;
+import static org.openqa.selenium.testing.Driver.MARIONETTE;
+import static org.openqa.selenium.testing.Driver.PHANTOMJS;
+import static org.openqa.selenium.testing.Driver.SAFARI;
 
 import org.junit.After;
 import org.junit.Test;
@@ -45,6 +43,7 @@ import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.JavascriptEnabled;
 import org.openqa.selenium.testing.NeedsLocalEnvironment;
+import org.openqa.selenium.testing.NoDriverAfterTest;
 
 import java.util.Random;
 
@@ -261,7 +260,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     }
   }
 
-  @Ignore({CHROME, IE, PHANTOMJS, SAFARI, MARIONETTE})
+  @Ignore(value = {CHROME, IE, PHANTOMJS, SAFARI})
   @Test
   public void testShouldBeAbleToSwitchToParentFrame() {
     driver.get(pages.framesetPage);
@@ -270,7 +269,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertThat(driver.findElement(By.id("pageNumber")).getText(), equalTo("1"));
   }
 
-  @Ignore({CHROME, IE, PHANTOMJS, SAFARI, MARIONETTE})
+  @Ignore(value = {CHROME, IE, PHANTOMJS, SAFARI})
   @Test
   public void testShouldBeAbleToSwitchToParentFrameFromASecondLevelFrame() {
     driver.get(pages.framesetPage);
@@ -280,7 +279,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertThat(driver.findElement(By.id("pageNumber")).getText(), equalTo("11"));
   }
 
-  @Ignore({CHROME, IE, PHANTOMJS, SAFARI, MARIONETTE})
+  @Ignore(value = {CHROME, IE, PHANTOMJS, SAFARI})
   @Test
   public void testSwitchingToParentFrameFromDefaultContextIsNoOp() {
     driver.get(pages.xhtmlTestPage);
@@ -288,7 +287,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertEquals(driver.getTitle(), "XHTML Test Page");
   }
 
-  @Ignore({CHROME, IE, PHANTOMJS, SAFARI, MARIONETTE})
+  @Ignore(value = {CHROME, IE, PHANTOMJS, SAFARI})
   @Test
   public void testShouldBeAbleToSwitchToParentFromAnIframe() {
     driver.get(pages.iframePage);
@@ -305,7 +304,6 @@ public class FrameSwitchingTest extends JUnit4TestBase {
   // ----------------------------------------------------------------------------------------------
 
   @Test
-  @Ignore(MARIONETTE)
   public void testShouldContinueToReferToTheSameFrameOnceItHasBeenSelected() {
     driver.get(pages.framesetPage);
 
@@ -414,7 +412,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertNotNull(element);
   }
 
-  @Ignore({CHROME, FIREFOX, HTMLUNIT, IE, PHANTOMJS, SAFARI})
+  @Ignore({CHROME, HTMLUNIT, IE, PHANTOMJS, SAFARI})
   @Test
   public void testGetCurrentUrlReturnsTopLevelBrowsingContextUrl() {
     driver.get(pages.framesetPage);
@@ -424,13 +422,13 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertThat(driver.getCurrentUrl(), equalTo(pages.framesetPage));
   }
 
-  @Ignore({CHROME, FIREFOX, HTMLUNIT, IE, PHANTOMJS, SAFARI})
+  @Ignore({CHROME, HTMLUNIT, IE, PHANTOMJS, SAFARI})
   @Test
   public void testGetCurrentUrlReturnsTopLevelBrowsingContextUrlForIframes() {
     driver.get(pages.iframePage);
     assertThat(driver.getCurrentUrl(), equalTo(pages.iframePage));
 
-    driver.switchTo().frame("second");
+    driver.switchTo().frame("iframe1");
     assertThat(driver.getCurrentUrl(), equalTo(pages.iframePage));
   }
 
@@ -511,7 +509,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     }
   }
 
-  @Ignore(ALL)
+  @Ignore(value = {CHROME, HTMLUNIT, IE, MARIONETTE, PHANTOMJS, SAFARI}, reason = "not tested")
   @JavascriptEnabled
   @Test
   public void testShouldNotBeAbleToDoAnythingTheFrameIsDeletedFromUnderUs() {
@@ -547,6 +545,7 @@ public class FrameSwitchingTest extends JUnit4TestBase {
     assertTrue((Boolean) executor.executeScript("return window != window.top"));
   }
 
+  @JavascriptEnabled
   @Test
   public void testShouldNotSwitchMagicallyToTheTopWindow() {
     String baseUrl = appServer.whereIs("frame_switching_tests/");

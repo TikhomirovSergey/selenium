@@ -23,47 +23,43 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 import static org.openqa.selenium.support.ui.ExpectedConditions.alertIsPresent;
 import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
-import static org.openqa.selenium.testing.Ignore.Driver.CHROME;
-import static org.openqa.selenium.testing.Ignore.Driver.FIREFOX;
-import static org.openqa.selenium.testing.Ignore.Driver.HTMLUNIT;
-import static org.openqa.selenium.testing.Ignore.Driver.IE;
-import static org.openqa.selenium.testing.Ignore.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Ignore.Driver.PHANTOMJS;
-import static org.openqa.selenium.testing.Ignore.Driver.SAFARI;
-import static org.openqa.selenium.testing.TestUtilities.getEffectivePlatform;
+import static org.openqa.selenium.testing.Driver.CHROME;
+import static org.openqa.selenium.testing.Driver.FIREFOX;
+import static org.openqa.selenium.testing.Driver.HTMLUNIT;
+import static org.openqa.selenium.testing.Driver.IE;
+import static org.openqa.selenium.testing.Driver.MARIONETTE;
+import static org.openqa.selenium.testing.Driver.PHANTOMJS;
+import static org.openqa.selenium.testing.Driver.SAFARI;
 import static org.openqa.selenium.testing.TestUtilities.getFirefoxVersion;
 import static org.openqa.selenium.testing.TestUtilities.isFirefox;
-import static org.openqa.selenium.testing.TestUtilities.isNativeEventsEnabled;
-
-import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.openqa.selenium.support.ui.ExpectedCondition;
-import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.JavascriptEnabled;
 import org.openqa.selenium.testing.NeedsLocalEnvironment;
+import org.openqa.selenium.testing.NoDriverAfterTest;
 import org.openqa.selenium.testing.NotYetImplemented;
+import org.openqa.selenium.testing.SwitchToTopAfterTest;
+
+import java.util.Set;
 
 @Ignore({PHANTOMJS, SAFARI})
 public class AlertsTest extends JUnit4TestBase {
 
-  private WebDriverWait wait;
-
   @Before
   public void setUp() throws Exception {
-    wait = new WebDriverWait(driver, 5);
     driver.get(pages.alertsPage);
   }
 
   @JavascriptEnabled
   @Test
+  @NoDriverAfterTest
   public void testShouldBeAbleToOverrideTheWindowAlertMethod() {
     ((JavascriptExecutor) driver).executeScript(
         "window.alert = function(msg) { document.getElementById('text').innerHTML = msg; }");
@@ -154,11 +150,11 @@ public class AlertsTest extends JUnit4TestBase {
     assertEquals("Testing Alerts", driver.getTitle());
   }
 
-  @Ignore(MARIONETTE)
+  @Ignore(value = MARIONETTE, reason = "https://github.com/jgraham/wires/issues/17")
   @JavascriptEnabled
   @Test
-  @NotYetImplemented(value = HTMLUNIT,
-    reason = "HtmlUnit: click()/prompt need to run in different threads.")
+  @NotYetImplemented(value = {HTMLUNIT},
+    reason = "HtmlUnit: click()/prompt need to run in different threads")
   public void testShouldAllowAUserToSetTheValueOfAPrompt() {
     driver.findElement(By.id("prompt")).click();
 
@@ -169,7 +165,8 @@ public class AlertsTest extends JUnit4TestBase {
     wait.until(textInElementLocated(By.id("text"), "cheese"));
   }
 
-  @Ignore({CHROME, MARIONETTE})
+  @Ignore(value = {CHROME},
+    reason = "Marionette: https://github.com/jgraham/wires/issues/17")
   @JavascriptEnabled
   @Test
   public void testSettingTheValueOfAnAlertThrows() {
@@ -226,9 +223,8 @@ public class AlertsTest extends JUnit4TestBase {
     fail("Expected NoAlertPresentException");
   }
 
-  @Ignore(MARIONETTE)
   @JavascriptEnabled
-  @NoDriverAfterTest // So that next test never starts with "inside a frame" base state.
+  @SwitchToTopAfterTest
   @Test
   public void testShouldAllowUsersToAcceptAnAlertInAFrame() {
     driver.switchTo().frame("iframeWithAlert");
@@ -242,9 +238,8 @@ public class AlertsTest extends JUnit4TestBase {
     assertEquals("Testing Alerts", driver.getTitle());
   }
 
-  @Ignore(MARIONETTE)
   @JavascriptEnabled
-  @NoDriverAfterTest // So that next test never starts with "inside a frame" base state.
+  @SwitchToTopAfterTest
   @Test
   public void testShouldAllowUsersToAcceptAnAlertInANestedFrame() {
     driver.switchTo().frame("iframeWithIframe").switchTo().frame("iframeWithAlert");
@@ -273,11 +268,6 @@ public class AlertsTest extends JUnit4TestBase {
   @JavascriptEnabled
   @Test
   public void testSwitchingToMissingAlertInAClosedWindowThrows() throws Exception {
-    assumeFalse("This test does not fail on itself, but it causes the subsequent tests to fail",
-                isFirefox(driver) &&
-                isNativeEventsEnabled(driver) &&
-                getEffectivePlatform().is(Platform.LINUX));
-
     String mainWindow = driver.getWindowHandle();
     try {
       driver.findElement(By.id("open-new-window")).click();
@@ -463,12 +453,6 @@ public class AlertsTest extends JUnit4TestBase {
   @NotYetImplemented(value = HTMLUNIT,
     reason = "HtmlUnit: runs on the same test thread.")
   public void testShouldHandleAlertOnWindowClose() {
-    if (isFirefox(driver) &&
-        isNativeEventsEnabled(driver) &&
-        getEffectivePlatform().is(Platform.LINUX)) {
-      System.err.println("x_ignore_nofocus can cause a firefox crash here. Ignoring test. See issue 2987.");
-      assumeTrue(false);
-    }
     assumeFalse("Firefox 27 does not trigger alerts on unload",
         isFirefox(driver) && getFirefoxVersion(driver) >= 27);
     String mainWindow = driver.getWindowHandle();
@@ -491,8 +475,9 @@ public class AlertsTest extends JUnit4TestBase {
   }
 
   @JavascriptEnabled
-  @Ignore(value = {CHROME, MARIONETTE})
+  @Ignore(value = {CHROME})
   @Test
+  @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/jgraham/wires/issues/21")
   public void testIncludesAlertTextInUnhandledAlertException() {
     driver.findElement(By.id("alert")).click();
     wait.until(alertIsPresent());

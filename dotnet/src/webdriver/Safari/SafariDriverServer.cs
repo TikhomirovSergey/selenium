@@ -21,9 +21,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Security.Permissions;
 using System.Text;
 using System.Threading;
@@ -52,6 +49,11 @@ namespace OpenQA.Selenium.Safari
         /// <param name="options">The <see cref="SafariOptions"/> defining the browser settings.</param>
         public SafariDriverServer(SafariOptions options)
         {
+            if (options == null)
+            {
+                throw new ArgumentNullException("options", "options must not be null");
+            }
+
             int webSocketPort = options.Port;
             if (webSocketPort == 0)
             {
@@ -72,7 +74,7 @@ namespace OpenQA.Selenium.Safari
                 this.safariExecutableLocation = options.SafariLocation;
             }
         }
-        
+
         /// <summary>
         /// Starts the server.
         /// </summary>
@@ -131,10 +133,10 @@ namespace OpenQA.Selenium.Safari
         }
 
         /// <summary>
-        /// Releases the unmanaged resources used by the <see cref="SafariDriverServer"/> and optionally 
+        /// Releases the unmanaged resources used by the <see cref="SafariDriverServer"/> and optionally
         /// releases the managed resources.
         /// </summary>
-        /// <param name="disposing"><see langword="true"/> to release managed and resources; 
+        /// <param name="disposing"><see langword="true"/> to release managed and resources;
         /// <see langword="false"/> to only release unmanaged resources.</param>
         protected virtual void Dispose(bool disposing)
         {

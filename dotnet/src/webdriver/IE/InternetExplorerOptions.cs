@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using OpenQA.Selenium.Remote;
 
 namespace OpenQA.Selenium.IE
@@ -113,7 +112,7 @@ namespace OpenQA.Selenium.IE
     /// RemoteWebDriver driver = new RemoteWebDriver(new Uri("http://localhost:4444/wd/hub"), options.ToCapabilities());
     /// </code>
     /// </example>
-    public class InternetExplorerOptions
+    public class InternetExplorerOptions : DriverOptions
     {
         private const string IgnoreProtectedModeSettingsCapability = "ignoreProtectedModeSettings";
         private const string IgnoreZoomSettingCapability = "ignoreZoomSetting";
@@ -128,6 +127,8 @@ namespace OpenQA.Selenium.IE
         private const string EnsureCleanSessionCapability = "ie.ensureCleanSession";
         private const string ForceShellWindowsApiCapability = "ie.forceShellWindowsApi";
         private const string ValidateCookieDocumentTypeCapability = "ie.validateCookieDocumentType";
+        private const string FileUploadDialogTimeoutCapability = "ie.fileUploadDialogTimeout";
+        private const string EnableFullPageScreenshotCapability = "ie.enableFullPageScreenshot";
 
         private bool ignoreProtectedModeSettings;
         private bool ignoreZoomLevel;
@@ -139,7 +140,9 @@ namespace OpenQA.Selenium.IE
         private bool usePerProcessProxy;
         private bool ensureCleanSession;
         private bool validateCookieDocumentType = true;
+        private bool enableFullPageScreenshot = true;
         private TimeSpan browserAttachTimeout = TimeSpan.MinValue;
+        private TimeSpan fileUploadDialogTimeout = TimeSpan.MinValue;
         private string initialBrowserUrl = string.Empty;
         private string browserCommandLineArguments = string.Empty;
         private InternetExplorerElementScrollBehavior elementScrollBehavior = InternetExplorerElementScrollBehavior.Top;
@@ -251,6 +254,16 @@ namespace OpenQA.Selenium.IE
         }
 
         /// <summary>
+        /// Gets or sets the amount of time the driver will attempt to look for the file selection
+        /// dialog when attempting to upload a file.
+        /// </summary>
+        public TimeSpan FileUploadDialogTimeout
+        {
+            get { return this.fileUploadDialogTimeout; }
+            set { this.fileUploadDialogTimeout = value; }
+        }
+
+        /// <summary>
         /// Gets or sets a value indicating whether to force the use of the Windows CreateProcess API
         /// when launching Internet Explorer. The default value is <see langword="false"/>.
         /// </summary>
@@ -281,7 +294,7 @@ namespace OpenQA.Selenium.IE
         }
 
         /// <summary>
-        /// Gets or sets the command line arguments used in launching Internet Explorer when the 
+        /// Gets or sets the command line arguments used in launching Internet Explorer when the
         /// Windows CreateProcess API is used. This property only has an effect when the
         /// <see cref="ForceCreateProcessApi"/> is <see langword="true"/>.
         /// </summary>
@@ -330,18 +343,28 @@ namespace OpenQA.Selenium.IE
         }
 
         /// <summary>
-        /// Provides a means to add additional capabilities not yet added as type safe options 
+        /// Gets or sets a value indicating whether to enable full-page screenshots for
+        /// the IE driver. Defaults to <see langword="true"/>.
+        /// </summary>
+        public bool EnableFullPageScreenshot
+        {
+            get { return this.enableFullPageScreenshot; }
+            set { this.enableFullPageScreenshot = value; }
+        }
+
+        /// <summary>
+        /// Provides a means to add additional capabilities not yet added as type safe options
         /// for the Internet Explorer driver.
         /// </summary>
         /// <param name="capabilityName">The name of the capability to add.</param>
         /// <param name="capabilityValue">The value of the capability to add.</param>
         /// <exception cref="ArgumentException">
-        /// thrown when attempting to add a capability for which there is already a type safe option, or 
+        /// thrown when attempting to add a capability for which there is already a type safe option, or
         /// when <paramref name="capabilityName"/> is <see langword="null"/> or the empty string.
         /// </exception>
         /// <remarks>Calling <see cref="AddAdditionalCapability"/> where <paramref name="capabilityName"/>
         /// has already been added will overwrite the existing value with the new value in <paramref name="capabilityValue"/></remarks>
-        public void AddAdditionalCapability(string capabilityName, object capabilityValue)
+        public override void AddAdditionalCapability(string capabilityName, object capabilityValue)
         {
             if (capabilityName == IgnoreProtectedModeSettingsCapability ||
                 capabilityName == IgnoreZoomSettingCapability ||
@@ -359,7 +382,9 @@ namespace OpenQA.Selenium.IE
                 capabilityName == UsePerProcessProxyCapability ||
                 capabilityName == EnsureCleanSessionCapability ||
                 capabilityName == ValidateCookieDocumentTypeCapability ||
-                capabilityName == CapabilityType.PageLoadStrategy)
+                capabilityName == CapabilityType.PageLoadStrategy ||
+                capabilityName == FileUploadDialogTimeoutCapability ||
+                capabilityName == EnableFullPageScreenshotCapability)
             {
                 string message = string.Format(CultureInfo.InvariantCulture, "There is already an option for the {0} capability. Please use that instead.", capabilityName);
                 throw new ArgumentException(message, "capabilityName");
@@ -379,7 +404,7 @@ namespace OpenQA.Selenium.IE
         /// reflected in the returned capabilities.
         /// </summary>
         /// <returns>The DesiredCapabilities for IE with these options.</returns>
-        public ICapabilities ToCapabilities()
+        public override ICapabilities ToCapabilities()
         {
             DesiredCapabilities capabilities = DesiredCapabilities.InternetExplorer();
             capabilities.SetCapability(CapabilityType.HasNativeEvents, this.enableNativeEvents);
@@ -449,6 +474,11 @@ namespace OpenQA.Selenium.IE
                 capabilities.SetCapability(BrowserAttachTimeoutCapability, Convert.ToInt32(this.browserAttachTimeout.TotalMilliseconds));
             }
 
+            if (this.fileUploadDialogTimeout != TimeSpan.MinValue)
+            {
+                capabilities.SetCapability(FileUploadDialogTimeoutCapability, Convert.ToInt32(this.fileUploadDialogTimeout.TotalMilliseconds));
+            }
+
             if (this.forceCreateProcessApi)
             {
                 capabilities.SetCapability(ForceCreateProcessApiCapability, true);
@@ -477,6 +507,11 @@ namespace OpenQA.Selenium.IE
             if (!this.validateCookieDocumentType)
             {
                 capabilities.SetCapability(ValidateCookieDocumentTypeCapability, false);
+            }
+
+            if (!this.enableFullPageScreenshot)
+            {
+                capabilities.SetCapability(EnableFullPageScreenshotCapability, false);
             }
 
             foreach (KeyValuePair<string, object> pair in this.additionalCapabilities)

@@ -24,6 +24,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
+import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.SearchContext;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
@@ -89,7 +90,9 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
       execute(DriverCommand.SUBMIT_ELEMENT, ImmutableMap.of("id", id));
     } else {
       WebElement form = findElement(By.xpath("./ancestor-or-self::form"));
-      parent.executeScript("arguments[0].submit()", form);
+      parent.executeScript("var e = arguments[0].ownerDocument.createEvent('Event');" +
+                           "e.initEvent('submit', true, true);" +
+                           "if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }", form);
     }
   }
 
@@ -391,6 +394,16 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
     int width = ((Number) rawSize.get("width")).intValue();
     int height = ((Number) rawSize.get("height")).intValue();
     return new Dimension(width, height);
+  }
+
+  public Rectangle getRect() {
+    Response response = execute(DriverCommand.GET_ELEMENT_RECT, ImmutableMap.of("id", id));
+    Map<String, Object> rawRect = (Map<String, Object>) response.getValue();
+    int x = ((Number) rawRect.get("x")).intValue();
+    int y = ((Number) rawRect.get("y")).intValue();
+    int width = ((Number) rawRect.get("width")).intValue();
+    int height = ((Number) rawRect.get("height")).intValue();
+    return new Rectangle(x, y, height, width);
   }
 
   public Coordinates getCoordinates() {
