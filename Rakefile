@@ -41,17 +41,20 @@ require 'rake-tasks/ie_code_generator'
 require 'rake-tasks/ci'
 require 'rake-tasks/copyright'
 
-require 'rake-tasks/gecko_sdks'
-
 $DEBUG = orig_verbose != :default ? true : false
 if (ENV['debug'] == 'true')
   $DEBUG = true
 end
 verbose($DEBUG)
 
-def version
-  "2.52.0"
+def release_version
+  "3.0"
 end
+
+def version
+  "#{release_version}.0-beta1"
+end
+
 ide_version = "2.8.0"
 
 # The build system used by webdriver is layered on top of rake, and we call it
@@ -96,6 +99,26 @@ end
 # from rake.
 crazy_fun.create_tasks(Dir["**/build.desc"])
 
+# Buck integration. Loaded after CrazyFun has initialized all the tasks it'll handle.
+# This is because the buck integration creates a rule for "//.*"
+require 'rake-tasks/buck'
+
+# Java targets required for release. These should all have the correct maven_coords set.
+JAVA_RELEASE_TARGETS = [
+  '//java/client/src/com/thoughtworks/selenium:leg-rc',
+  '//java/client/src/org/openqa/selenium:core',
+  '//java/client/src/org/openqa/selenium:selenium',
+  '//java/client/src/org/openqa/selenium/chrome:chrome',
+  '//java/client/src/org/openqa/selenium/edge:edge',
+  '//java/client/src/org/openqa/selenium/firefox:firefox',
+  '//java/client/src/org/openqa/selenium/ie:ie',
+  '//java/client/src/org/openqa/selenium/opera:opera',
+  '//java/client/src/org/openqa/selenium/remote:remote',
+  '//java/client/src/org/openqa/selenium/safari:safari',
+  '//java/server/src/com/thoughtworks/selenium:leg-rc',
+]
+
+
 # Notice that because we're using rake, anything you can do in a normal rake
 # build can also be done here. For example, here we set the default task
 task :default => [:test]
@@ -123,7 +146,6 @@ task :tests => [
 task :chrome => [ "//java/client/src/org/openqa/selenium/chrome" ]
 task :common_core => [ "//common:core" ]
 task :grid => [ "//java/server/src/org/openqa/grid/selenium" ]
-task :htmlunit => [ "//java/client/src/org/openqa/selenium/htmlunit" ]
 task :ie => [ "//java/client/src/org/openqa/selenium/ie" ]
 task :firefox => [
   "//cpp:noblur",
@@ -138,7 +160,6 @@ task :remote_common => ["//java/client/src/org/openqa/selenium/remote:common"]
 task :remote_client => ["//java/client/src/org/openqa/selenium/remote"]
 task :remote_server => ["//java/server/src/org/openqa/selenium/remote/server"]
 task :safari => [
-  "//javascript/safari-driver:SafariDriver",
   "//java/client/src/org/openqa/selenium/safari",
 ]
 task :server_lite => ["//java/server/src/org/openqa/selenium/server:server_lite"]
@@ -151,7 +172,7 @@ task :support => [
 desc 'Build the standalone server'
 task 'selenium-server-standalone' => '//java/server/src/org/openqa/grid/selenium:selenium:uber'
 
-task 'selenium-server-standalone-v3' => '//java/server/src/org/openqa/grid/selenium:selenium-v3:uber'
+task 'selenium-server-standalone-v3' => '//java/server/src/org/openqa/grid/selenium:selenium:uber'
 
 task :ide => [ "//ide:selenium-ide-multi" ]
 task :ide_proxy_setup => [ "//javascript/selenium-atoms", "se_ide:setup_proxy" ]
@@ -248,16 +269,14 @@ task :test_java => [
 
 task :test_rb => [
   "//rb:unit-test",
-  "//rb:rc-client-unit-test",
-  "//rb:rc-client-integration-test",
   "//rb:chrome-test",
   "//rb:firefox-test",
   "//rb:phantomjs-test",
   "//rb:remote-chrome-test",
   "//rb:remote-firefox-test",
   "//rb:remote-phantomjs-test",
-  ("//rb:marionette-test" if ENV['MARIONETTE_PATH']),
-  ("//rb:remote-marionette-test" if ENV['MARIONETTE_PATH']),
+  "//rb:marionette-test",
+  "//rb:remote-marionette-test",
   ("//rb:safari-test" if mac?),
   ("//rb:remote-safari-test" if mac?),
   ("//rb:ie-test" if windows?),
@@ -306,67 +325,6 @@ ie_generate_type_mapping(:name => "ie_result_type_java",
                          :out => "java/client/src/org/openqa/selenium/ie/IeReturnTypes.java")
 
 
-GeckoSDKs.new do |sdks|
-  sdks.add 'third_party/gecko-24/linux',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/24.0/sdk/xulrunner-24.0.en-US.linux-i686.sdk.tar.bz2',
-           '669ef73966d0401f77c0a429f194535c'
-
-  sdks.add 'third_party/gecko-24/linux64',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/24.0/sdk/xulrunner-24.0.en-US.linux-x86_64.sdk.tar.bz2',
-           '5d58e46da74c49cb50cd45edbcb86ccd'
-
-  sdks.add 'third_party/gecko-24/win32',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/24.0/sdk/xulrunner-24.0.en-US.win32.sdk.zip',
-           '29d8fcf397038930a4220b7d60bb3cbf'
-
-  sdks.add 'third_party/gecko-31/linux',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/31.0/sdk/xulrunner-31.0.en-US.linux-i686.sdk.tar.bz2',
-           'e20ce46e69ed36e20aa4faefe3022698'
-
-  sdks.add 'third_party/gecko-31/linux64',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/31.0/sdk/xulrunner-31.0.en-US.linux-x86_64.sdk.tar.bz2',
-           '548ff61bb3a45d0bf645eee7f46e8024'
-
-  sdks.add 'third_party/gecko-31/win32',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/31.0/sdk/xulrunner-31.0.en-US.win32.sdk.zip',
-           'e8d7d9bd67b957bb627de7d3269d240b'
-
-  sdks.add 'third_party/gecko-33/linux',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/33.0/sdk/xulrunner-33.0.en-US.linux-i686.sdk.tar.bz2',
-           'c9b7dede14b9a86060cff0fdf5303c0c'
-
-  sdks.add 'third_party/gecko-33/linux64',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/33.0/sdk/xulrunner-33.0.en-US.linux-x86_64.sdk.tar.bz2',
-           'b7bd9617941c430ffc962f19673a4157'
-
-  sdks.add 'third_party/gecko-33/win32',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/33.0/sdk/xulrunner-33.0.en-US.win32.sdk.zip',
-           'c03b4ec0596a8ea275c788616fbfaa6b'
-
-  sdks.add 'third_party/gecko-34/linux',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/34.0/sdk/xulrunner-34.0.en-US.linux-i686.sdk.tar.bz2',
-           '41021581fb2a6e7c2a4dd4eb838ed67f'
-
-  sdks.add 'third_party/gecko-34/linux64',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/34.0/sdk/xulrunner-34.0.en-US.linux-x86_64.sdk.tar.bz2',
-           '75e3dde3f68ca6ca7c2f3ec50b51396b'
-
-  sdks.add 'third_party/gecko-34/win32',
-           'http://ftp.mozilla.org/pub/mozilla.org/xulrunner/releases/34.0/sdk/xulrunner-34.0.en-US.win32.sdk.zip',
-           '7a613e5e9503e54205dd16de5c1e9aea'
-
-end
-
-task :'selenium-server_zip' do
-  temp = "build/selenium-server_zip"
-  mkdir_p temp
-  sh "cd #{temp} && jar xf ../selenium-server.zip"
-  rm_f "build/selenium-server.zip"
-  Dir["#{temp}/webdriver-*.jar"].each { |file| rm_rf file }
-  mv "#{temp}/selenium-server.jar", "#{temp}/selenium-server-#{version}.jar"
-  sh "cd #{temp} && jar cMf ../selenium-server.zip *"
-end
-
 {"firefox" => "*chrome",
  "ie" => "*iexploreproxy",
  "opera" => "*opera",
@@ -379,7 +337,7 @@ end
                 :browser => v )
 end
 
-task :javadocs => [:common, :firefox, :htmlunit, :ie, :remote, :support, :chrome, :selenium] do
+task :javadocs => [:common, :firefox, :ie, :remote, :support, :chrome, :selenium] do
   mkdir_p "build/javadoc"
    sourcepath = ""
    classpath = '.'
@@ -475,13 +433,6 @@ end
 desc "Calculate dependencies required for testing the automation atoms"
 task :calcdeps => "build/javascript/deps.js"
 
-task :test_webdriverjs => [
-  "//javascript/webdriver:es6_test:run"
-]
-
-desc "Generate a single file with WebDriverJS' public API"
-task :webdriverjs => [ "//javascript/webdriver:webdriver" ]
-
 desc "Repack jetty"
 task "repack-jetty" => "build/third_party/java/jetty/jetty-repacked.jar"
 
@@ -523,106 +474,76 @@ file "build/third_party/java/jetty/jetty-repacked.jar" => [
    cp "build/third_party/java/jetty/jetty-repacked.jar", "third_party/java/jetty/jetty-repacked.jar"
 end
 
-task
+#task "release" => [
+#    :clean,
+#    :build,
+#    '//java/server/src/org/openqa/selenium/remote/server:server:zip',
+#    '//java/server/src/org/openqa/grid/selenium:selenium:zip',
+#    '//java/client/src/org/openqa/selenium:client-combined-v3:zip',
+#  ] do |t|
+#  # Unzip each of the deps and rename the pieces that need renaming
+#  renames = {
+#    "client-combined-v3-nodeps-srcs.jar" => "selenium-java-#{version}-srcs.jar",
+#    "client-combined-v3-nodeps.jar" => "selenium-java-#{version}.jar",
+#    "selenium-nodeps-srcs.jar" => "selenium-server-#{version}-srcs.jar",
+#    "selenium-nodeps.jar" => "selenium-server-#{version}.jar",
+#    "selenium-standalone.jar" => "selenium-server-standalone-#{version}.jar",
+#  }
+#
+#  t.prerequisites.each do |pre|
+#    zip = Rake::Task[pre].out
+#
+#    next unless zip =~ /\.zip$/
+#
+#    temp =  zip + "rename"
+#    rm_rf temp
+#    deep = File.join(temp, "/selenium-#{version}")
+#    mkdir_p deep
+#    cp "java/CHANGELOG", deep
+#    cp "NOTICE", deep
+#    cp "LICENSE", deep
+#
+#    sh "cd #{deep} && jar xf ../../#{File.basename(zip)}"
+#    renames.each do |from, to|
+#      src = File.join(deep, from)
+#      next unless File.exists?(src)
+#
+#      mv src, File.join(deep, to)
+#    end
+#    rm_f File.join(deep, "client-combined-v3-standalone.jar")
+#    rm zip
+#    sh "cd #{temp} && jar cMf ../#{File.basename(zip)} *"
+#
+#    rm_rf temp
+#  end
+#
+#  mkdir_p "build/dist"
+#  cp "build/java/server/src/org/openqa/grid/selenium/selenium-standalone.jar", "build/dist/selenium-server-standalone-#{version}.jar"
+#  cp "build/java/server/src/org/openqa/grid/selenium/selenium.zip", "build/dist/selenium-server-#{version}.zip"
+#  cp "build/java/client/src/org/openqa/selenium/client-combined-v3.zip", "build/dist/selenium-java-#{version}.zip"
+#end
 
-task :release => [
-    :clean,
-    :build,
-    '//java/server/src/org/openqa/selenium/server:server:zip',
-    '//java/server/src/org/openqa/grid/selenium:selenium:zip',
-    '//java/client/src/org/openqa/selenium:client-combined:zip',
-  ] do |t|
-  # Unzip each of the deps and rename the pieces that need renaming
-  renames = {
-    "client-combined-nodeps-srcs.jar" => "selenium-java-#{version}-srcs.jar",
-    "client-combined-nodeps.jar" => "selenium-java-#{version}.jar",
-    "selenium-nodeps-srcs.jar" => "selenium-server-#{version}-srcs.jar",
-    "selenium-nodeps.jar" => "selenium-server-#{version}.jar",
-    "selenium-standalone.jar" => "selenium-server-standalone-#{version}.jar",
-  }
+task :release => JAVA_RELEASE_TARGETS + [
+  # Until we mananage to migrate to Buck entirely.
+  '//java/server/src/org/openqa/grid/selenium:selenium:uber',
+  '//java/server/src/org/openqa/grid/selenium:selenium:zip',
+  '//java/client/src/org/openqa/selenium:client-combined-v3:zip',
+ ] do |t|
+  puts t.prerequisites.join(', ')
 
-  t.prerequisites.each do |pre|
-    zip = Rake::Task[pre].out
-
-    next unless zip =~ /\.zip$/
-
-    temp =  zip + "rename"
-    rm_rf temp
-    deep = File.join(temp, "/selenium-#{version}")
-    mkdir_p deep
-    cp "java/CHANGELOG", deep
-    cp "NOTICE", deep
-    cp "LICENSE", deep
-
-    sh "cd #{deep} && jar xf ../../#{File.basename(zip)}"
-    renames.each do |from, to|
-      src = File.join(deep, from)
-            next unless File.exists?(src)
-
-      mv src, File.join(deep, to)
-    end
-    rm_f File.join(deep, "client-combined-standalone.jar")
-    rm zip
-    sh "cd #{temp} && jar cMf ../#{File.basename(zip)} *"
-
-    rm_rf temp
+  t.prerequisites.each do |p|
+     # Nasty hack to work around buck publish not knowing how to build crazy fun targets
+     if p.to_s.count(':') > 1
+       next
+     end
+#    Buck::buck_cmd.call('publish', "--dry-run --to-maven-central #{p}")
+    Buck::buck_cmd.call('build', "#{p}")
   end
 
   mkdir_p "build/dist"
   cp "build/java/server/src/org/openqa/grid/selenium/selenium-standalone.jar", "build/dist/selenium-server-standalone-#{version}.jar"
   cp "build/java/server/src/org/openqa/grid/selenium/selenium.zip", "build/dist/selenium-server-#{version}.zip"
-  cp "build/java/client/src/org/openqa/selenium/client-combined.zip", "build/dist/selenium-java-#{version}.zip"
-end
-
-task "release-v3" => [
-    :clean,
-    :build,
-    '//java/server/src/org/openqa/selenium/remote/server:server:zip',
-    '//java/server/src/org/openqa/grid/selenium:selenium-v3:zip',
-    '//java/client/src/org/openqa/selenium:client-combined-v3-without-htmlunit:zip',
-    '//java/client/src/org/openqa/selenium:client-combined-v3:zip',
-  ] do |t|
-  # Unzip each of the deps and rename the pieces that need renaming
-  renames = {
-    "client-combined-v3-nodeps-srcs.jar" => "selenium-java-v3-#{version}-srcs.jar",
-    "client-combined-v3-nodeps.jar" => "selenium-java-v3-#{version}.jar",
-    "selenium-v3-nodeps-srcs.jar" => "selenium-server-v3-#{version}-srcs.jar",
-    "selenium-v3-nodeps.jar" => "selenium-server-v3-#{version}.jar",
-    "selenium-v3-standalone.jar" => "selenium-server-v3-standalone-#{version}.jar",
-  }
-
-  t.prerequisites.each do |pre|
-    zip = Rake::Task[pre].out
-
-    next unless zip =~ /\.zip$/
-
-    temp =  zip + "rename"
-    rm_rf temp
-    deep = File.join(temp, "/selenium-#{version}")
-    mkdir_p deep
-    cp "java/CHANGELOG", deep
-    cp "NOTICE", deep
-    cp "LICENSE", deep
-
-    sh "cd #{deep} && jar xf ../../#{File.basename(zip)}"
-    renames.each do |from, to|
-      src = File.join(deep, from)
-      next unless File.exists?(src)
-
-      mv src, File.join(deep, to)
-    end
-    rm_f File.join(deep, "client-combined-v3-standalone.jar")
-    rm zip
-    sh "cd #{temp} && jar cMf ../#{File.basename(zip)} *"
-
-    rm_rf temp
-  end
-
-  mkdir_p "build/dist"
-  cp "build/java/server/src/org/openqa/grid/selenium/selenium-v3-standalone.jar", "build/dist/selenium-server-v3-standalone-#{version}.jar"
-  cp "build/java/server/src/org/openqa/grid/selenium/selenium-v3.zip", "build/dist/selenium-server-v3-#{version}.zip"
-  cp "build/java/client/src/org/openqa/selenium/client-combined-v3.zip", "build/dist/selenium-java-v3-#{version}.zip"
-  cp "build/java/client/src/org/openqa/selenium/client-combined-v3-without-htmlunit.zip", "build/dist/selenium-java-v3-without-htmlunit-#{version}.zip"
+  cp "build/java/client/src/org/openqa/selenium/client-combined-v3.zip", "build/dist/selenium-java-#{version}.zip"
 end
 
 task :push_release => [:release] do
@@ -631,44 +552,15 @@ task :push_release => [:release] do
     py = "python"
   end
 
-  print "Enter your googlecode username:"
-  googlecode_username = STDIN.gets.chomp
-  print "Enter your googlecode password (NOT your gmail password, the one you use for svn, available at https://code.google.com/hosting/settings):"
-  googlecode_password = STDIN.gets.chomp
-
-  [
-    {:file => "build/dist/selenium-server-standalone-#{version}.jar", :description => "Use this if you want to use the Selenium RC or Remote WebDriver or use Grid 2 without needing any additional dependencies"},
-    {:file => "build/dist/selenium-server-#{version}.zip", :description => "All variants of the Selenium Server: stand-alone, jar with dependencies and sources."},
-    {:file => "build/dist/selenium-java-#{version}.zip", :description => "The Java bindings for Selenium 2, including the WebDriver API clients. Download this if you want to use WebDriver API and the Selenium RC clients. Download this if you plan on just using the client-side pieces of Selenium"},
-  ].each do |file|
-    puts "Uploading file #{file[:file]}..."
-    sh "#{py} third_party/py/googlecode/googlecode_upload.py -s '#{file[:description]}' -p selenium #{file[:file]} -l Featured -u #{googlecode_username} -w #{googlecode_password}"
-  end
+  sh "#{py} third_party/py/googlestorage/publish_release.py --project_id google.com:webdriver --bucket selenium-release --acl public-read --publish_version #{release_version} --publish build/dist/selenium-server-standalone-#{version}.jar --publish build/dist/selenium-server-#{version}.zip --publish build/dist/selenium-java-#{version}.zip"
 end
 
 desc 'Build the selenium client jars'
-task 'selenium-java' => '//java/client/src/org/openqa/selenium:client-combined:project'
+task 'selenium-java' => '//java/client/src/org/openqa/selenium:selenium'
 
 desc 'Build and package Selenium IDE'
 task :release_ide  => [:ide] do
   cp 'build/ide/selenium-ide.xpi', "build/ide/selenium-ide-#{ide_version}.xpi"
-end
-
-# TODO: do this properly
-namespace :docs do
-  task :mime_types do
-    sh "svn propset svn:mime-type text/html #{Dir['docs/api/**/*.html'].join ' '}"
-    sh "svn propset svn:mime-type application/javascript #{Dir['docs/api/**/*.js'].join ' '}"
-    sh "svn propset svn:mime-type text/css #{Dir['docs/api/**/*.css'].join ' '}"
-  end
-
-  task :js => [ "//javascript/node:selenium-webdriver" ] do
-    # First, delete the old docs.
-    rm_rf "docs/api/javascript"
-
-    mkdir_p "docs/api/javascript"
-    cp_r "build/javascript/node/selenium-webdriver/docs/.", "docs/api/javascript"
-  end
 end
 
 namespace :node do
@@ -694,42 +586,17 @@ namespace :node do
 
     sh cmd
   end
+
+  task :docs do
+    sh "node javascript/node/gendocs.js"
+  end
 end
 
 namespace :safari do
-  desc "Build the SafariDriver extension"
-  task :extension => [ "//javascript/safari-driver:SafariDriver" ]
-
-  desc "Build the SafariDriver extension and java client"
+  desc "Build the SafariDriver java client"
   task :build => [
-    :extension,
     "//java/client/src/org/openqa/selenium/safari"
   ]
-
-  desc "Run JavaScript tests for Safari"
-  task :testjs => [
-      "//javascript/atoms:test_safari:run",
-      "//javascript/safari-driver:test:run",
-      "//javascript/selenium-atoms:test_safari:run",
-      "//javascript/webdriver:test_safari:run"
-  ]
-
-  desc "Run Java tests for Safari"
-  task :testjava => [
-      "//java/client/test/org/openqa/selenium/safari:test:run"
-  ]
-
-  desc "Run all SafariDriver tests"
-  task :test => [
-      "safari:testjs",
-      "safari:testjava"
-  ]
-
-  desc "Re-install the SafariDriver extension; OSX only"
-  task :reinstall => [ :extension ] do |t|
-    raise StandardError, "Task #{t.name} is only available on OSX" unless mac?
-    sh "osascript javascript/safari-driver/reinstall.scpt"
-  end
 end
 
 namespace :marionette do

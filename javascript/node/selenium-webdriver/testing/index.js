@@ -92,16 +92,25 @@ function seal(fn) {
 function wrapped(globalFn) {
   return function() {
     if (arguments.length === 1) {
-      return globalFn(makeAsyncTestFn(arguments[0]));
-    }
-    else if (arguments.length === 2) {
-      return globalFn(arguments[0], makeAsyncTestFn(arguments[1]));
-    }
-    else {
+      return globalFn(wrapArgument(arguments[0]));
+
+    } else if (arguments.length === 2) {
+      return globalFn(arguments[0], wrapArgument(arguments[1]));
+
+    } else {
       throw Error('Invalid # arguments: ' + arguments.length);
     }
   };
 }
+
+
+function wrapArgument(value) {
+  if (typeof value === 'function') {
+    return makeAsyncTestFn(value);
+  }
+  return value;
+}
+
 
 /**
  * Make a wrapper to invoke caller's test function, fn.  Run the test function
@@ -116,7 +125,7 @@ function wrapped(globalFn) {
 function makeAsyncTestFn(fn) {
   var async = fn.length > 0; // if test function expects a callback, its "async"
 
-  var ret = function(done) {
+  var ret = /** @type {function(this: mocha.Context)}*/ (function(done) {
     var runnable = this.runnable();
     var mochaCallback = runnable.callback;
     runnable.callback = function() {
@@ -145,7 +154,7 @@ function makeAsyncTestFn(fn) {
         }
       }, flow);
     }, runnable.fullTitle()).then(seal(done), done);
-  };
+  });
 
   ret.toString = function() {
     return fn.toString();

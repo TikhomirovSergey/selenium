@@ -1,13 +1,13 @@
 java_library(name = "selenium",
   deps = [
     ":base",
-    "//java/client/src/org/openqa/selenium/htmlunit",
     "//java/client/src/org/openqa/selenium/firefox",
     "//java/client/src/org/openqa/selenium/remote",
   ])
 
 java_library(name = "build",
   srcs = [
+    "BuckBuild.java",
     "Build.java",
   ],
   deps = [
@@ -35,6 +35,7 @@ java_library(name = "base",
     "//java/client/test/org/openqa/selenium/environment",
     "//java/client/test/org/openqa/selenium/testing",
     "//java/client/test/org/openqa/selenium/testing:annotations",
+    "//java/client/src/org/openqa/selenium/support/ui:ui",
     "//third_party/java/junit",
     "//third_party/java/hamcrest",
   ])
@@ -64,6 +65,7 @@ java_library(name = "tests",
     "//java/client/src/org/openqa/selenium/net",
     "//java/client/src/org/openqa/selenium/remote:common",
     "//java/client/src/org/openqa/selenium/support/ui:wait",
+    "//java/client/src/org/openqa/selenium/browserlaunchers/locators:locators",
     "//java/client/test/com/thoughtworks/selenium/webdriven:small_tests",
     "//java/client/test/org/openqa/selenium/environment",
     "//java/client/test/org/openqa/selenium/testing:junit_4",

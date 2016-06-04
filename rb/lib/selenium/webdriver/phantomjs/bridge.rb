@@ -21,8 +21,10 @@ module Selenium
   module WebDriver
     module PhantomJS
 
-
+      #
       # @api private
+      #
+
       class Bridge < Remote::Bridge
 
         def initialize(opts = {})
@@ -33,10 +35,9 @@ module Selenium
             url = opts.delete(:url)
           else
             args = opts.delete(:args) || caps['phantomjs.cli.args']
-            port = opts.delete(:port)
 
-            @service = Service.default_service(port)
-            @service.start(args)
+            @service = Service.new(PhantomJS.path, Service::DEFAULT_PORT, *args)
+            @service.start
 
             url = @service.uri
           end

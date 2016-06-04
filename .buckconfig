@@ -1,7 +1,7 @@
 [java]
   src_roots = /java/client/src, /java/client/test, /java/server/src, /java/server/test
-  source_level = 7
-  target_level = 7
+  source_level = 8 
+  target_level = 8
 
 [project]
   ignore = \
@@ -22,7 +22,6 @@
 [alias]
   chrome   = //java/client/src/org/openqa/selenium/chrome:chrome
   firefox  = //java/client/src/org/openqa/selenium/firefox:firefox
-  htmlunit = //java/client/src/org/openqa/selenium/htmlunit:htmlunit
   remote   = //java/client/src/org/openqa/selenium/remote:remote
   safari   = //java/client/src/org/openqa/selenium/safari:safari
 

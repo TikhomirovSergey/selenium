@@ -15,6 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/**
+ * @fileoverview Defines a {@linkplain Driver WebDriver} client for the PhantomJS
+ * web browser. By default, it is expected that the PhantomJS executable can be located on your [PATH](https://en.wikipedia.org/wiki/PATH_(variable))
+ * 
+ *  __Using a Custom PhantomJS Binary__
+ * 
+ * If you have PhantomJS.exe placed somewhere other than the root of your working directory,
+ * you can build a custom Capability and attach the executable's location to the Capability
+ * 
+ * For example, if you're using the [phantomjs-prebuilt](https://www.npmjs.com/package/phantomjs-prebuilt) module from npm:
+ * 
+ *     //setup custom phantomJS capability
+ *     var phantomjs_exe = require('phantomjs-prebuilt').path;
+ *     var customPhantom = selenium.Capabilities.phantomjs();
+ *     customPhantom.set("phantomjs.binary.path", phantomjs_exe);
+ *     //build custom phantomJS driver
+ *     var driver = new selenium.Builder().
+ *            withCapabilities(customPhantom).
+ *            build();
+ *
+ */
+ 
 'use strict';
 
 const fs = require('fs');
@@ -54,14 +76,6 @@ const BINARY_PATH_CAPABILITY = 'phantomjs.binary.path';
  * @const
  */
 const CLI_ARGS_CAPABILITY = 'phantomjs.cli.args';
-
-
-/**
- * Default log file to use if one is not specified through CLI args.
- * @type {string}
- * @const
- */
-const DEFAULT_LOG_FILE = 'phantomjsdriver.log';
 
 
 /**
@@ -136,11 +150,16 @@ class Driver extends webdriver.WebDriver {
    *     capabilities.
    * @param {promise.ControlFlow=} opt_flow The control flow to use,
    *     or {@code null} to use the currently active flow.
+   * @param {string=} opt_logFile Path to the log file for the phantomjs
+   *     executable's output. For convenience, this may be set at runtime with
+   *     the `SELENIUM_PHANTOMJS_LOG` environment variable.
    */
-  constructor(opt_capabilities, opt_flow) {
+  constructor(opt_capabilities, opt_flow, opt_logFile) {
+    // TODO: add an Options class for consistency with the other driver types.
+
     var caps = opt_capabilities || capabilities.Capabilities.phantomjs();
     var exe = findExecutable(caps.get(BINARY_PATH_CAPABILITY));
-    var args = ['--webdriver-logfile=' + DEFAULT_LOG_FILE];
+    var args = [];
 
     var logPrefs = caps.get(capabilities.Capability.LOGGING_PREFS);
     if (logPrefs instanceof logging.Preferences) {
@@ -153,6 +172,11 @@ class Driver extends webdriver.WebDriver {
       if (level) {
         args.push('--webdriver-loglevel=' + level);
       }
+    }
+
+    opt_logFile = process.env['SELENIUM_PHANTOMJS_LOG'] || opt_logFile;
+    if (typeof opt_logFile === 'string') {
+      args.push('--webdriver-logfile=' + opt_logFile);
     }
 
     var proxy = caps.get(capabilities.Capability.PROXY);

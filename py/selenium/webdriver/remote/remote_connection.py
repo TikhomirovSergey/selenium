@@ -29,6 +29,7 @@ except ImportError: # above is available in py3+, below is py2.7
     import urllib2 as url_request
     import urlparse as parse
 
+from selenium.webdriver.common import utils as common_utils
 from .command import Command
 from .errorhandler import ErrorCode
 from . import utils
@@ -165,13 +166,17 @@ class RemoteConnection(object):
         # Attempt to resolve the hostname and get an IP address.
         self.keep_alive = keep_alive
         parsed_url = parse.urlparse(remote_server_addr)
-        addr = ""
+        addr = parsed_url.hostname
         if parsed_url.hostname and resolve_ip:
-            try:
-                netloc = socket.gethostbyname(parsed_url.hostname)
+            port = parsed_url.port or None
+            ip = common_utils.find_connectable_ip(parsed_url.hostname,
+                                                  port=port)
+            if ip:
+                netloc = ip
                 addr = netloc
                 if parsed_url.port:
-                    netloc += ':%d' % parsed_url.port
+                    netloc = common_utils.join_host_port(netloc,
+                                                         parsed_url.port)
                 if parsed_url.username:
                     auth = parsed_url.username
                     if parsed_url.password:
@@ -180,8 +185,9 @@ class RemoteConnection(object):
                 remote_server_addr = parse.urlunparse(
                     (parsed_url.scheme, netloc, parsed_url.path,
                      parsed_url.params, parsed_url.query, parsed_url.fragment))
-            except socket.gaierror:
-                LOGGER.info('Could not get IP address for host: %s' % parsed_url.hostname)
+            else:
+                LOGGER.info('Could not get IP address for host: %s' %
+                            parsed_url.hostname)
 
         self._url = remote_server_addr
         if keep_alive:

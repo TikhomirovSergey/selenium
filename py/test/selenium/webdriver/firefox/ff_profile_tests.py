@@ -37,18 +37,22 @@ from selenium.test.selenium.webdriver.common.webserver import SimpleWebServer
 class TestFirefoxProfile:
 
     def setup_method(self, method):
-        self.driver = webdriver.Firefox()
+        self.capabilities = {'marionette': False}
+        self.driver = webdriver.Firefox(capabilities=self.capabilities)
         self.webserver = SimpleWebServer()
         self.webserver.start()
 
     def test_that_we_can_accept_a_profile(self):
         profile1 = webdriver.FirefoxProfile()
+        profile1.set_preference("browser.startup.homepage_override.mstone", "")
         profile1.set_preference("startup.homepage_welcome_url",
             self.webserver.where_is('simpleTest.html'))
         profile1.update_preferences()
 
         profile2 = webdriver.FirefoxProfile(profile1.path)
-        driver = webdriver.Firefox(firefox_profile=profile2)
+        driver = webdriver.Firefox(
+            capabilities=self.capabilities,
+            firefox_profile=profile2)
         title = driver.title
         driver.quit()
         assert "Hello WebDriver" == title

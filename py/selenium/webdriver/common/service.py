@@ -41,7 +41,7 @@ class Service(object):
         """
         Gets the url of the Service
         """
-        return "http://localhost:%d" % self.port
+        return "http://%s" % utils.join_host_port('localhost', self.port)
 
     def command_line_args(self):
         raise NotImplemented("This method needs to be implemented in a sub class")
@@ -81,11 +81,22 @@ class Service(object):
                 (os.path.basename(self.path), self.start_error_message, str(e))
                 )
         count = 0
-        while not self.is_connectable():
+        while True:
+            self.assert_process_still_running()
+            if self.is_connectable():
+                break
             count += 1
             time.sleep(1)
             if count == 30:
                 raise WebDriverException("Can not connect to the Service %s" % self.path)
+
+    def assert_process_still_running(self):
+        return_code = self.process.poll()
+        if return_code is not None:
+            raise WebDriverException(
+                'Service %s unexpectedly exited. Status code was: %s'
+                % (self.path, return_code)
+            )
 
     def is_connectable(self):
         return utils.is_connectable(self.port)
@@ -100,7 +111,7 @@ class Service(object):
             URLError = urllib2.URLError
 
         try:
-            url_request.urlopen("http://127.0.0.1:%d/shutdown" % self.port)
+            url_request.urlopen("%s/shutdown" % self.service_url)
         except URLError:
             return
         count = 0

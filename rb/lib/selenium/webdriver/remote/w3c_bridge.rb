@@ -253,7 +253,7 @@ module Selenium
 
         def maximizeWindow(handle = :current)
           unless handle == :current
-            raise Error::WebDriverError, 'Switch to desired window before changing its size'
+            raise Error::UnsupportedOperationError, 'Switch to desired window before changing its size'
           end
           execute :maximizeWindow
         end
@@ -264,7 +264,7 @@ module Selenium
 
         def getWindowSize(handle = :current)
           unless handle == :current
-            raise Error::WebDriverError, 'Switch to desired window before getting its size'
+            raise Error::UnsupportedOperationError, 'Switch to desired window before getting its size'
           end
           data = execute :getWindowSize
 
@@ -272,11 +272,11 @@ module Selenium
         end
 
         def setWindowPosition(_x, _y, _handle = nil)
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support setting the Window Position'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support setting the Window Position'
         end
 
         def getWindowPosition(_handle = nil)
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support getting the Window Position'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support getting the Window Position'
         end
 
         def getScreenshot
@@ -336,19 +336,19 @@ module Selenium
         end
 
         def getLocation
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support getting location'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support getting location'
         end
 
         def setLocation(_lat, _lon, _alt)
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support setting location'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support setting location'
         end
 
         def getNetworkConnection
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support getting network connection'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support getting network connection'
         end
 
         def setNetworkConnection(_type)
-          raise Error::WebDriverError::UnsupportedOperationError, 'The W3C standard does not currently support setting network connection'
+          raise Error::UnsupportedOperationError, 'The W3C standard does not currently support setting network connection'
         end
 
         #
@@ -599,13 +599,13 @@ module Selenium
           case how
           when 'class name'
             how = 'css selector'
-            what = ".#{what}"
+            what = ".#{escape_css(what)}"
           when 'id'
             how = 'css selector'
-            what = "##{what}"
+            what = "##{escape_css(what)}"
           when 'name'
             how = 'css selector'
-            what = "*[name='#{what}']"
+            what = "*[name='#{escape_css(what)}']"
           when 'tag name'
             how = 'css selector'
           end
@@ -650,6 +650,20 @@ module Selenium
 
         def escaper
           @escaper ||= defined?(URI::Parser) ? URI::Parser.new : URI
+        end
+
+        ESCAPE_CSS_REGEXP = /(['"\\#.:;,!?+<>=~*^$|%&@`{}\-\[\]\(\)])/
+        UNICODE_CODE_POINT = 30
+
+        # Escapes invalid characters in CSS selector.
+        # @see https://mathiasbynens.be/notes/css-escapes
+        def escape_css(string)
+          string = string.gsub(ESCAPE_CSS_REGEXP) { |match| "\\#{match}" }
+          if !string.empty? && string[0] =~ /[[:digit:]]/
+            string = "\\#{UNICODE_CODE_POINT + Integer(string[0])} #{string[1..-1]}"
+          end
+
+          string
         end
 
       end # W3CBridge

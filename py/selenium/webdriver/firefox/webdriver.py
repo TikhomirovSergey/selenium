@@ -21,6 +21,11 @@ try:
 except ImportError:
     import httplib as http_client
 
+try:
+    basestring
+except NameError:  # Python 3.x
+    basestring = str
+
 import shutil
 import socket
 import sys
@@ -32,6 +37,7 @@ from selenium.webdriver.firefox.extension_connection import ExtensionConnection
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
 from .service import Service
+from .options import Options
 
 
 class WebDriver(RemoteWebDriver):
@@ -40,23 +46,23 @@ class WebDriver(RemoteWebDriver):
     NATIVE_EVENTS_ALLOWED = sys.platform != "darwin"
 
     def __init__(self, firefox_profile=None, firefox_binary=None, timeout=30,
-                 capabilities=None, proxy=None, executable_path="wires"):
-        self.binary = firefox_binary
-        self.profile = firefox_profile
+                 capabilities=None, proxy=None, executable_path="wires", firefox_options=None):
+        capabilities = capabilities or DesiredCapabilities.FIREFOX.copy()
 
-        if self.profile is None:
-            self.profile = FirefoxProfile()
-
+        self.profile = firefox_profile or FirefoxProfile()
         self.profile.native_events_enabled = (
             self.NATIVE_EVENTS_ALLOWED and self.profile.native_events_enabled)
 
-        if capabilities is None:
-            capabilities = DesiredCapabilities.FIREFOX
+        self.binary = firefox_binary or capabilities.get("binary", FirefoxBinary())
+
+        self.options = firefox_options or Options()
+        self.options.binary_location = self.binary if isinstance(self.binary, basestring) else self.binary._start_cmd
+        self.options.profile = self.profile
+        capabilities.update(self.options.to_capabilities())
 
         # marionette
         if capabilities.get("marionette"):
-            self.binary = capabilities.get("binary")
-            self.service = Service(executable_path, firefox_binary=self.binary)
+            self.service = Service(executable_path, firefox_binary=self.options.binary_location)
             self.service.start()
 
             executor = FirefoxRemoteConnection(
@@ -68,9 +74,6 @@ class WebDriver(RemoteWebDriver):
                 keep_alive=True)
         else:
             # Oh well... sometimes the old way is the best way.
-            if self.binary is None:
-                self.binary = FirefoxBinary()
-
             if proxy is not None:
                 proxy.add_to_capabilities(capabilities)
 
@@ -96,12 +99,12 @@ class WebDriver(RemoteWebDriver):
             self.service.stop()
         else:
             self.binary.kill()
-            try:
-                shutil.rmtree(self.profile.path)
-                if self.profile.tempfolder is not None:
-                    shutil.rmtree(self.profile.tempfolder)
-            except Exception as e:
-                print(str(e))
+        try:
+            shutil.rmtree(self.profile.path)
+            if self.profile.tempfolder is not None:
+                shutil.rmtree(self.profile.tempfolder)
+        except Exception as e:
+            print(str(e))
 
     @property
     def firefox_profile(self):
