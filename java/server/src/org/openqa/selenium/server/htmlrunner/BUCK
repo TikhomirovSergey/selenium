@@ -1,6 +1,6 @@
 java_binary(
   name = 'main',
-  main_class = 'org.openqa.selenium.server.htmlrunner.Main',
+  main_class = 'org.openqa.selenium.server.htmlrunner.HTMLLauncher',
   deps = [
     ':htmlrunner',
   ],
@@ -20,8 +20,10 @@ java_library(
     '//java/client/src/org/openqa/selenium/remote:remote',
     '//java/client/src/org/openqa/selenium/safari:safari',
     '//third_party/java/guava:guava',
+    '//third_party/java/jetty:jetty',
   ],
   visibility = [
     '//java/server/src/com/thoughtworks/selenium:leg-rc',
+    '//java/server/test/org/openqa/selenium/...',
   ],
 )

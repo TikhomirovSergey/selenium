@@ -1,11 +1,51 @@
-## v2.54.0-dev
+## v3.0.0-dev
 
 * Allow users to set the agent used for HTTP connections through
    `builder.Builder#usingHttpAgent()`
 * Added new wait conditions: `until.urlIs()`, `until.urlContains()`,
    `until.urlMatches()`
-* Added work around for [GeckoDriver bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1274924) raising a type conversion error
+* Added work around for [GeckoDriver bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1274924)
+   raising a type conversion error
+* Internal cleanup replacing uses of managed promises with native promises
 * Removed the mandatory use of Firefox Dev Edition, when using Marionette driver
+* Fixed timeouts' URL
+* Properly send HTTP requests when using a WebDriver server proxy
+
+### API Changes
+
+* `promise.Deferred` is no longer a thenable object.
+* `Options#addCookie()` now takes a record object instead of 7 individual
+  parameters. A TypeError will be thrown if addCookie() is called with invalid
+  arguments.
+* When adding cookies, the desired expiry must be provided as a Date or in
+  _seconds_ since epoch. When retrieving cookies, the expiration is always
+  returned in seconds.
+*  Renamed `firefox.Options#useMarionette` to `firefox.Options#useGeckoDriver`
+* Removed deprecated modules:
+   - `selenium-webdriver/error` (use `selenium-webdriver/lib/error`,\
+     or the `error` property exported by `selenium-webdriver`)
+* Removed deprecated types:
+   - `error.InvalidSessionIdError` (use `error.NoSuchSessionError`)
+   - `executors.DeferredExecutor` (use `command.DeferredExecutor`)
+   - `until.Condition` (use `webdriver.Condition`)
+   - `until.WebElementCondition` (use `webdriver.WebElementCondition`)
+   - `webdriver.UnhandledAlertError` (use `error.UnexpectedAlertOpenError`)
+* Removed deprecated functions:
+   - `Deferred#cancel()`
+   - `Deferred#catch()`
+   - `Deferred#finally()`
+   - `Deferred#isPending()`
+   - `Deferred#then()`
+   - `Promise#thenCatch()`
+   - `Promise#thenFinally()`
+   - `WebDriver#isElementPresent()`
+   - `WebElement#getInnerHtml()`
+   - `WebElement#getOuterHtml()`
+   - `WebElement#getRawId()`
+   - `WebElement#isElementPresent()`
+* Removed deprecated properties:
+   - `WebDriverError#code`
+
 
 ## v2.53.2
 

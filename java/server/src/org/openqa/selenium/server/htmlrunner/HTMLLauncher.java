@@ -17,6 +17,41 @@
 
 package org.openqa.selenium.server.htmlrunner;
 
+import static org.openqa.selenium.firefox.FirefoxDriver.MARIONETTE;
+
+import com.thoughtworks.selenium.Selenium;
+import com.thoughtworks.selenium.webdriven.WebDriverBackedSelenium;
+
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.ie.InternetExplorerDriver;
+import org.openqa.selenium.internal.SocketLock;
+import org.openqa.selenium.net.PortProber;
+import org.openqa.selenium.opera.OperaDriver;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.safari.SafariDriver;
+import org.seleniumhq.jetty9.server.Connector;
+import org.seleniumhq.jetty9.server.HttpConfiguration;
+import org.seleniumhq.jetty9.server.HttpConnectionFactory;
+import org.seleniumhq.jetty9.server.Server;
+import org.seleniumhq.jetty9.server.ServerConnector;
+import org.seleniumhq.jetty9.server.handler.ContextHandler;
+import org.seleniumhq.jetty9.server.handler.ResourceHandler;
+import org.seleniumhq.jetty9.util.resource.Resource;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 /**
  * Runs HTML Selenium test suites.
  *
@@ -26,32 +61,32 @@ package org.openqa.selenium.server.htmlrunner;
  */
 public class HTMLLauncher implements HTMLResultsListener {
 
-//  static Logger log = Logger.getLogger(HTMLLauncher.class.getName());
-//  private SeleniumServer remoteControl;
+  //    java -jar selenium-server-standalone-<version-number>.jar -htmlSuite "*firefox"
+  //    "http://www.google.com" "c:\absolute\path\to\my\HTMLSuite.html"
+  //    "c:\absolute\path\to\my\results.html"
+  private static Logger log = Logger.getLogger(HTMLLauncher.class.getName());
+
+  private Server server;
 //  private HTMLTestResults results;
-//
-//  public HTMLLauncher(SeleniumServer remoteControl) {
-//    this.remoteControl = remoteControl;
-//  }
-//
-//  /**
-//   * Launches a single HTML Selenium test suite.
-//   *
-//   * @param browser - the browserString ("*firefox", "*iexplore" or an executable path)
-//   * @param browserURL - the start URL for the browser
-//   * @param suiteURL - the relative URL to the HTML suite
-//   * @param outputFile - The file to which we'll output the HTML results
-//   * @param timeoutInSeconds - the amount of time (in seconds) to wait for the browser to finish
-//   * @param multiWindow TODO
-//   * @return PASS or FAIL
-//   * @throws IOException if we can't write the output file
-//   */
-//  public String runHTMLSuite(String browser, String browserURL, String suiteURL, File outputFile,
-//      long timeoutInSeconds, boolean multiWindow) throws IOException {
-//    return runHTMLSuite(browser, browserURL, suiteURL, outputFile,
-//        timeoutInSeconds, multiWindow, "info");
-//  }
-//
+
+  /**
+   * Launches a single HTML Selenium test suite.
+   *
+   * @param browser - the browserString ("*firefox", "*iexplore" or an executable path)
+   * @param browserURL - the start URL for the browser
+   * @param suiteURL - the relative URL to the HTML suite
+   * @param outputFile - The file to which we'll output the HTML results
+   * @param timeoutInSeconds - the amount of time (in seconds) to wait for the browser to finish
+   * @param multiWindow TODO
+   * @return PASS or FAIL
+   * @throws IOException if we can't write the output file
+   */
+  public String runHTMLSuite(String browser, String browserURL, String suiteURL, File outputFile,
+      long timeoutInSeconds, boolean multiWindow) throws IOException {
+    return runHTMLSuite(browser, browserURL, suiteURL, outputFile,
+        timeoutInSeconds, multiWindow, "info");
+  }
+
 //  protected BrowserLauncher getBrowserLauncher(String browser, String sessionId,
 //      RemoteControlConfiguration configuration, Capabilities browserOptions) {
 //    BrowserLauncherFactory blf = new BrowserLauncherFactory();
@@ -77,59 +112,60 @@ public class HTMLLauncher implements HTMLResultsListener {
 //      fw.close();
 //    }
 //  }
-//
-//  /**
-//   * Launches a single HTML Selenium test suite.
-//   *
-//   * @param browser - the browserString ("*firefox", "*iexplore" or an executable path)
-//   * @param browserURL - the start URL for the browser
-//   * @param suiteURL - the relative URL to the HTML suite
-//   * @param outputFile - The file to which we'll output the HTML results
-//   * @param multiWindow TODO
-//   * @param defaultLogLevel TODO
-//   * @param timeoutInSeconds - the amount of time (in seconds) to wait for the browser to finish
-//   * @return PASS or FAIL
-//   * @throws IOException if we can't write the output file
-//   */
-//  private String runHTMLSuite(String browser, String browserURL, String suiteURL, File outputFile,
-//      long timeoutInSeconds, boolean multiWindow, String defaultLogLevel) throws IOException {
-//    outputFile.createNewFile();
-//    if (!outputFile.canWrite()) {
-//      throw new IOException("Can't write to outputFile: " + outputFile.getAbsolutePath());
-//    }
-//    long timeoutInMs = 1000L * timeoutInSeconds;
-//    if (timeoutInMs < 0) {
-//      log.warning("Looks like the timeout overflowed, so resetting it to the maximum.");
-//      timeoutInMs = Long.MAX_VALUE;
-//    }
-//
-//    RemoteControlConfiguration configuration = remoteControl.getConfiguration();
-//    remoteControl.handleHTMLRunnerResults(this);
-//
-//    String sessionId = Long.toString(System.currentTimeMillis() % 1000000);
-//    FrameGroupCommandQueueSet.makeQueueSet(
-//        sessionId, configuration.getPortDriversShouldContact(), configuration);
-//
-//    Capabilities browserOptions =
-//        configuration.copySettingsIntoBrowserOptions(new DesiredCapabilities());
-//    browserOptions = BrowserOptions.setSingleWindow(browserOptions, !multiWindow);
-//
-//    BrowserLauncher launcher =
-//        getBrowserLauncher(browser, sessionId, configuration, browserOptions);
-//    BrowserSessionInfo sessionInfo = new BrowserSessionInfo(sessionId,
-//        browser, browserURL, launcher, null);
-//
-//    remoteControl.registerBrowserSession(sessionInfo);
-//
-//    // JB: -- aren't these URLs in the wrong order according to declaration?
-//    launcher.launchHTMLSuite(suiteURL, browserURL);
-//
-//    sleepTight(timeoutInMs);
-//
-//    launcher.close();
-//
-//    remoteControl.deregisterBrowserSession(sessionInfo);
-//
+
+  /**
+   * Launches a single HTML Selenium test suite.
+   *
+   * @param browser - the browserString ("*firefox", "*iexplore" or an executable path)
+   * @param browserURL - the start URL for the browser
+   * @param suiteURL - the relative URL to the HTML suite
+   * @param outputFile - The file to which we'll output the HTML results
+   * @param multiWindow TODO
+   * @param defaultLogLevel TODO
+   * @param timeoutInSeconds - the amount of time (in seconds) to wait for the browser to finish
+   * @return PASS or FAIL
+   * @throws IOException if we can't write the output file
+   */
+  private String runHTMLSuite(String browser, String browserURL, String suiteURL, File outputFile,
+      long timeoutInSeconds, boolean multiWindow, String defaultLogLevel) throws IOException {
+    File parent = outputFile.getParentFile();
+    if (parent != null && !parent.exists()) {
+      parent.mkdirs();
+    }
+    if (outputFile.exists() && !outputFile.canWrite()) {
+      throw new IOException("Can't write to outputFile: " + outputFile.getAbsolutePath());
+    }
+    long timeoutInMs = 1000L * timeoutInSeconds;
+    if (timeoutInMs < 0) {
+      log.warning("Looks like the timeout overflowed, so resetting it to the maximum.");
+      timeoutInMs = Long.MAX_VALUE;
+    }
+
+    WebDriver driver = null;
+    try {
+      driver = createDriver(browser);
+      URL suiteUrl = determineSuiteUrl(browserURL, suiteURL);
+
+      Selenium selenium = new WebDriverBackedSelenium(driver, browserURL);
+      Results results = new Results();
+      new CoreTest(suiteUrl.toString()).run(results, driver, selenium);
+
+      return results.isSuccessful() ? "PASSED" : "FAILED";
+    } finally {
+      if (server != null) {
+        try {
+          server.stop();
+        } catch (Exception e) {
+          // Nothing sane to do. Log the error and carry on
+          log.log(Level.INFO, "Exception shutting down server. You may ignore this.", e);
+        }
+      }
+
+      if (driver != null) {
+        driver.quit();
+      }
+    }
+
 //    if (results == null) {
 //      throw new SeleniumCommandTimedOutException();
 //    }
@@ -137,7 +173,7 @@ public class HTMLLauncher implements HTMLResultsListener {
 //    writeResults(outputFile);
 //
 //    return results.getResult().toUpperCase();
-//  }
+    }
 //
 //  /**
 //   * Launches a single HTML Selenium test suite.
@@ -177,62 +213,116 @@ public class HTMLLauncher implements HTMLResultsListener {
 //    return runHTMLSuite(browser, browserURL, suiteURL, outputFile, timeoutInSeconds, multiWindow,
 //        "info");
 //  }
-//
-//
+
+  private URL determineSuiteUrl(String browserUrl, String suiteURL) throws IOException {
+    String url = null;
+
+    if (suiteURL.startsWith("https://") || suiteURL.startsWith("http://")) {
+      return verifySuiteUrl(new URL(suiteURL));
+    }
+
+    // Is the suiteURL a file?
+    Path path = Paths.get(suiteURL);
+    if (Files.exists(path)) {
+      // Not all drivers can read files from the disk, so we need to host the suite somewhere.
+      try (SocketLock lock = new SocketLock()) {
+        server = new Server();
+        HttpConfiguration httpConfig = new HttpConfiguration();
+
+        ServerConnector http = new ServerConnector(server, new HttpConnectionFactory(httpConfig));
+        int port = PortProber.findFreePort();
+        http.setPort(port);
+        http.setIdleTimeout(500000);
+        server.setConnectors(new Connector[]{http});
+
+        ResourceHandler handler = new ResourceHandler();
+        handler.setDirectoriesListed(true);
+        handler.setWelcomeFiles(new String[]{"index.html"});
+        handler.setBaseResource(Resource.newResource(path.toFile()));
+
+        ContextHandler context = new ContextHandler("/tests");
+        context.setHandler(handler);
+
+        server.setHandler(handler);
+        server.start();
+
+        PortProber.pollPort(port);
+
+        URL serverUrl = server.getURI().toURL();
+        return new URL(serverUrl.getProtocol(), serverUrl.getHost(), serverUrl.getPort(),
+                       "/tests/");
+      } catch (Exception e) {
+        throw new IOException(e);
+      }
+    }
+
+    // Well then, it must be a URL relative to whatever the browserUrl. Probe and find out.
+    URL browser = new URL(browserUrl);
+    return verifySuiteUrl(new URL(browser, suiteURL));
+  }
+
+  private URL verifySuiteUrl(URL url) throws IOException {
+    // Now probe.
+    URLConnection connection = url.openConnection();
+    if (!(connection instanceof HttpURLConnection)) {
+      throw new IOException("The HTMLLauncher only supports relative HTTP URLs");
+    }
+    HttpURLConnection httpConnection = (HttpURLConnection) connection;
+    httpConnection.setInstanceFollowRedirects(true);
+    httpConnection.setRequestMethod("HEAD");
+    int responseCode = httpConnection.getResponseCode();
+    if (responseCode != HttpURLConnection.HTTP_OK) {
+      throw new IOException("Invalid suite URL: " + url);
+    }
+    return url;
+ }
+
   /** Accepts HTMLTestResults for later asynchronous handling */
   public void processResults(HTMLTestResults resultsParm) {
 //    this.results = resultsParm;
   }
-//
-//  public static int mainInt(String... args) throws Exception {
-//    if (args.length != 5 && args.length != 4) {
-//      throw new IllegalAccessException(
-//          "Usage: HTMLLauncher outputDir testSuite startUrl multiWindow browser");
-//    }
-//
-//    File dir = new File(args[0]);
-//    if (!dir.exists() && !dir.mkdirs()) {
-//      throw new RuntimeException("Cannot create output directory for: " + dir);
-//    }
-//
-//    String suite = args[1];
-//    String startURL = args[2];
-//    boolean multiWindow = Boolean.parseBoolean(args[3]);
-//    String[] browsers;
-//    if (args.length == 4) {
-//      log.info("Running self tests");
-//      browsers = new String[] {BrowserType.FIREFOX, BrowserType.IEXPLORE_PROXY, BrowserType.OPERA, BrowserType.CHROME};
-//    } else {
-//      browsers = new String[] {args[4]};
-//    }
-//
-//    SeleniumServer server = new SeleniumServer(false, new RemoteControlConfiguration());
-//    server.start();
-//    HTMLLauncher launcher = new HTMLLauncher(server);
-//
-//    boolean passed = true;
-//    for (String browser : browsers) {
-//      // Turns out that Windows doesn't like "*" in a path name
-//      File results = new File(dir, browser.substring(1) + ".results");
-//      String result = "FAILED";
-//
-//      try {
-//        result = launcher.runHTMLSuite(browser, startURL, suite, results, 600, multiWindow);
-//        passed &= "PASSED".equals(result);
-//      } catch (Throwable e) {
-//        log.log(Level.WARNING, "Test of browser failed: " + browser, e);
-//        passed = false;
-//      }
-//    }
-//    server.stop();
-//
-//    return passed ? 1 : 0;
-//  }
-//
-//  public static void main(String[] args) throws Exception {
-//    System.exit(mainInt(args));
-//  }
-//
+
+  public static int mainInt(String... args) throws Exception {
+    if (args.length != 5 && args.length != 4) {
+      throw new IllegalAccessException(
+          "Usage: HTMLLauncher outputDir testSuite startUrl multiWindow browser");
+    }
+
+    File dir = new File(args[0]);
+    if (!dir.exists() && !dir.mkdirs()) {
+      throw new RuntimeException("Cannot create output directory for: " + dir);
+    }
+
+    String suite = args[1];
+    String startURL = args[2];
+    boolean multiWindow = Boolean.parseBoolean(args[3]);
+    String[] browsers;
+    browsers = new String[] {args[4]};
+
+    HTMLLauncher launcher = new HTMLLauncher();
+
+    boolean passed = true;
+    for (String browser : browsers) {
+      // Turns out that Windows doesn't like "*" in a path name
+      File results = new File(dir, browser.substring(1) + ".results");
+      String result = "FAILED";
+
+      try {
+        result = launcher.runHTMLSuite(browser, startURL, suite, results, 600, multiWindow);
+        passed &= "PASSED".equals(result);
+      } catch (Throwable e) {
+        log.log(Level.WARNING, "Test of browser failed: " + browser, e);
+        passed = false;
+      }
+    }
+
+    return passed ? 1 : 0;
+  }
+
+  public static void main(String[] args) throws Exception {
+    System.exit(mainInt(args));
+  }
+
 //  public HTMLTestResults getResults() {
 //    return results;
 //  }
@@ -240,4 +330,40 @@ public class HTMLLauncher implements HTMLResultsListener {
 //  public void setResults(HTMLTestResults results) {
 //    this.results = results;
 //  }
+
+  private WebDriver createDriver(String browser) {
+    switch (browser) {
+      case "*chrome":
+      case "*firefox":
+      case "*firefoxproxy":
+      case "*firefoxchrome":
+      case "*pifirefox":
+        DesiredCapabilities caps = new DesiredCapabilities();
+        caps.setCapability(MARIONETTE, true);
+        return new FirefoxDriver(caps);
+
+      case "*iehta":
+      case "*iexplore":
+      case "*iexploreproxy":
+      case "*piiexplore":
+        return new InternetExplorerDriver();
+
+      case "*googlechrome":
+        return new ChromeDriver();
+
+      case "*MicrosoftEdge":
+        return new EdgeDriver();
+
+      case "*opera":
+      case "*operablink":
+        return new OperaDriver();
+
+      case "*safari":
+      case "*safariproxy":
+        return new SafariDriver();
+
+      default:
+        throw new RuntimeException("Unrecognized browser: " + browser);
+    }
+  }
 }

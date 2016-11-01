@@ -16,16 +16,21 @@
 // under the License.
 
 /**
- * @fileoverview Defines a {@linkplain Driver WebDriver} client for the PhantomJS
- * web browser. By default, it is expected that the PhantomJS executable can be located on your [PATH](https://en.wikipedia.org/wiki/PATH_(variable))
- * 
+ * @fileoverview Defines a {@linkplain Driver WebDriver} client for the
+ * PhantomJS web browser. By default, it is expected that the PhantomJS
+ * executable can be located on your
+ * [PATH](https://en.wikipedia.org/wiki/PATH_(variable))
+ *
  *  __Using a Custom PhantomJS Binary__
- * 
- * If you have PhantomJS.exe placed somewhere other than the root of your working directory,
- * you can build a custom Capability and attach the executable's location to the Capability
- * 
- * For example, if you're using the [phantomjs-prebuilt](https://www.npmjs.com/package/phantomjs-prebuilt) module from npm:
- * 
+ *
+ * If you have PhantomJS.exe placed somewhere other than the root of your
+ * working directory, you can build a custom Capability and attach the
+ * executable's location to the Capability
+ *
+ * For example, if you're using the
+ * [phantomjs-prebuilt](https://www.npmjs.com/package/phantomjs-prebuilt) module
+ * from npm:
+ *
  *     //setup custom phantomJS capability
  *     var phantomjs_exe = require('phantomjs-prebuilt').path;
  *     var customPhantom = selenium.Capabilities.phantomjs();
@@ -36,7 +41,7 @@
  *            build();
  *
  */
- 
+
 'use strict';
 
 const fs = require('fs');
@@ -125,11 +130,11 @@ const WEBDRIVER_TO_PHANTOMJS_LEVEL = new Map([
 
 /**
  * Creates a command executor with support for PhantomJS' custom commands.
- * @param {!promise.Promise<string>} url The server's URL.
+ * @param {!Promise<string>} url The server's URL.
  * @return {!command.Executor} The new command executor.
  */
 function createExecutor(url) {
-  return new executors.DeferredExecutor(url.then(function(url) {
+  return new command.DeferredExecutor(url.then(url => {
     var client = new http.HttpClient(url);
     var executor = new http.Executor(client);
 
@@ -186,7 +191,8 @@ class Driver extends webdriver.WebDriver {
           if (proxy.httpProxy) {
             args.push(
                 '--proxy-type=http',
-                '--proxy=http://' + proxy.httpProxy);
+                '--proxy=' + proxy.httpProxy);
+            console.log(args);
           }
           break;
         case 'pac':
@@ -204,7 +210,8 @@ class Driver extends webdriver.WebDriver {
     var port = portprober.findFreePort();
     var service = new remote.DriverService(exe, {
       port: port,
-      args: promise.when(port, function(port) {
+      stdio: 'inherit',
+      args: Promise.resolve(port).then(function(port) {
         args.push('--webdriver=' + port);
         return args;
       })
@@ -219,7 +226,8 @@ class Driver extends webdriver.WebDriver {
 
     /** @override */
     this.quit = function() {
-      return boundQuit().thenFinally(service.kill.bind(service));
+      let killService = () => service.kill();
+      return boundQuit().then(killService, killService);
     };
   }
 

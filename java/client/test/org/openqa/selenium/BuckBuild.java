@@ -24,7 +24,6 @@ import static org.openqa.selenium.testing.DevMode.isInDevMode;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
-import com.google.common.base.StandardSystemProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
@@ -32,12 +31,12 @@ import com.google.common.hash.Hashing;
 import org.openqa.selenium.os.CommandLine;
 import org.openqa.selenium.testing.InProject;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -99,7 +98,14 @@ public class BuckBuild {
     }
 
     String[] allLines = commandLine.getStdOut().split(LINE_SEPARATOR.value());
-    String lastLine = allLines[allLines.length -1 ];
+    String lastLine = null;
+    for (String line : allLines) {
+      if (line.startsWith(target)) {
+        lastLine = line;
+        break;
+      }
+    }
+    Preconditions.checkNotNull(lastLine);
 
     List<String> outputs = Splitter.on(' ').limit(2).splitToList(lastLine);
     if (outputs.size() != 2) {
@@ -138,8 +144,7 @@ public class BuckBuild {
     Path projectRoot = InProject.locate("Rakefile").getParentFile().toPath();
     String buckVersion = new String(Files.readAllBytes(projectRoot.resolve(".buckversion"))).trim();
 
-    Path pex = Paths.get(
-      StandardSystemProperty.USER_HOME.value(), ".crazyfun", "buck", buckVersion, "buck.pex");
+    Path pex = projectRoot.resolve("buck-out/crazy-fun/" + buckVersion + "/buck.pex");
 
     String expectedHash = new String(Files.readAllBytes(projectRoot.resolve(".buckhash"))).trim();
     HashCode md5 = Files.exists(pex) ?

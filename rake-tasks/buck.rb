@@ -1,4 +1,5 @@
-require 'open3'
+require 'childprocess'
+require 'java'
 require 'rake-tasks/checks'
 
 module Buck
@@ -6,17 +7,20 @@ module Buck
   def self.download
     @@buck_bin ||= (
       if File.exist?('.nobuckcheck') && present?('buck')
-        return "buck"
+        # We'll assume the user knows how to kill buck themselves
+        return ["buck"]
       end
 
       version = File.open('.buckversion').first.chomp
       cached_hash = File.open('.buckhash').first.chomp
 
-      out = File.expand_path("~/.crazyfun/buck/#{version}/buck.pex")
+      out = File.expand_path("buck-out/crazy-fun/#{version}/buck.pex")
       out_hash = File.exist?(out) ? Digest::MD5.file(out).hexdigest : nil
 
       if cached_hash == out_hash
-        return "python #{out}"
+        # Make sure we're running a pristine buck instance
+        sh "python \"#{out}\" kill"
+        return ["python", out]
       end
 
       url = "https://github.com/SeleniumHQ/buck/releases/download/buck-release-#{version}/buck.pex"
@@ -34,49 +38,59 @@ module Buck
 
       ant.get('src' => url, 'dest' => out, 'verbose' => true)
       File.chmod(0755, out)
-      "python #{out}"
+      sh "python \"#{out}\" kill"
+      ["python", out]
     )
   end
 
   def self.buck_cmd
-    @@buck_cmd ||= (
-      lambda { |command, target, &block|
-        buck = Buck::download
+    (
+      lambda { |command, args, &block|
+        buck = []
+        pex = Buck::download
+        buck.push(*pex)
 
-        cmd = "#{buck} #{command} #{target}"
+        args ||= []
+        buck.push(command)
+        buck.push(*args)
 
-        output = ''
-        err = ''
-        Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
-          stdin.close
+        pump_class = Class.new(Java::java.io.OutputStream) {
+          attr_writer :stream
 
-          while line = stderr.gets
-            if command == 'build' || command == 'publish' || command == 'test'
-              puts line
+          def initialize
+            @output = ''
+          end
+
+          def write(b)
+            if @stream
+              @stream.write(b)
             end
-            err += line
+            @output += b
           end
 
-          while line = stdout.gets
-            output += line
+          def output
+            @output
           end
+        }
 
-          # In jruby, wait_thr always appears to be nil. *sigh*
-#          if !wait_thr.value.success?
-#            raise "Unable to execute command: " + err.to_s
-#          end
+        err = ''
+        proc = ChildProcess.build(*buck)
+        proc.io.stdout = pump_class.new()
+        proc.io.stderr = pump_class.new()
+        if command == 'build' || command == 'publish' || command == 'test'
+          proc.io.stderr.stream = $stdout
         end
+        proc.start
+        proc.wait
 
-        # Because we can't get the exit code, hackily parse the output
-        if err.index('FAILED') != nil
+        if proc.exit_code != 0
           raise "Buck build failed"
         end
 
-        block.call(output.to_s) if block
+        block.call(proc.io.stdout.output) if block
       }
     )
 
-    #block.call(output) if block
   end
 
   def self.enhance_task(task)
@@ -97,7 +111,7 @@ module Buck
   def self.find_buck_out(target)
     out = nil
 
-    Buck::buck_cmd.call('targets', "--show-output #{target}") do |output|
+    Buck::buck_cmd.call('targets', ['--show-output', target]) do |output|
       sections = output.chomp.split
       # Not all buck rules have an output file.
       if sections.size > 1
@@ -132,7 +146,7 @@ def buck(*args, &block)
 
   task = Rake::Task.task_defined?(name) ? Rake::Task[name] : Rake::Task.define_task(name)
   task.enhance prereqs do
-    Buck::buck_cmd.call('build', name)
+    Buck::buck_cmd.call('build', [name])
     block.call if block
   end
 
@@ -146,17 +160,64 @@ rule /\/\/.*:run/ => [ proc {|task_name| task_name[0..-5]} ] do |task|
 
   task.enhance do
     # Figure out if this is an executable or a test target.
-    Buck::buck_cmd.call('query', "#{short} --output-attributes buck.type") do |output|
+    Buck::buck_cmd.call('query', [short, '--output-attributes', 'buck.type']) do |output|
       hash = JSON.parse(output)
       type = hash[short]['buck.type']
       if type =~ /.*_test/
-        Buck::buck_cmd.call('test', short)
+        Buck::buck_cmd.call('test', [short])
       else
-        Buck::buck_cmd.call('run', "--verbose 5 #{short}")
+        Buck::buck_cmd.call('run', ['--verbose', '5', short])
       end
     end
   end
 end
+
+
+rule /\/\/.*:zip/ => [ proc {|task_name| task_name[0..-5]} ] do |task|
+  Buck::enhance_task(task)
+
+  short = task.name[0..-5]
+
+  task.enhance do
+    # Figure out if this is an executable or a test target.
+    Buck::buck_cmd.call('audit', ['classpath', short]) do |output|
+      third_party = []
+      first_party = []
+
+      output.lines do |line|
+        line.chomp!
+
+        if line =~ /gen\/third_party\/.*\.jar/
+          third_party.push(line)
+        elsif line =~ /gen\/java\/.*\.jar/
+          first_party.push(line)
+        end
+      end
+
+      dir, target = short[2..-1].split(':', 2)
+      working_dir = "buck-out/crazy-fun/#{dir}/#{target}_zip"
+      out = "buck-out/crazy-fun/#{dir}/#{target}.zip"
+      rm_rf working_dir
+      mkdir_p "#{working_dir}/lib"
+      mkdir_p "#{working_dir}/uber"
+
+      first_party.each do |jar|
+        sh "cd #{working_dir}/uber && jar xf #{jar}"
+      end
+      sh "cd #{working_dir}/uber && jar cMf ../#{target}-nodeps.jar *"
+      # TODO: Get the sources of all deps too and build the -src.jar
+      rm_rf "#{working_dir}/uber"
+
+      third_party.each do |jar|
+        cp jar, "#{working_dir}/lib"
+      end
+      sh "cd #{working_dir} && jar cMf #{File.expand_path(out)} *"
+
+      task.out = out
+    end
+  end
+end
+
 
 rule /\/\/.*/ do |task|
   # Task is a FileTask, but that's not what we need. Instead, just delegate down to buck in all
@@ -165,7 +226,7 @@ rule /\/\/.*/ do |task|
 
   if task.class == Rake::FileTask && !task.out
     task.enhance do
-      Buck::buck_cmd.call('build', task.name)
+      Buck::buck_cmd.call('build', ['--deep', task.name])
     end
 
     Buck::enhance_task(task)

@@ -19,4 +19,13 @@ package org.openqa.selenium.server.htmlrunner;
 
 public class Results {
 
+  private boolean succeeded = true;
+
+  public boolean isSuccessful() {
+    return succeeded;
+  }
+
+  public void addTestFailure() {
+    succeeded = false;
+  }
 }

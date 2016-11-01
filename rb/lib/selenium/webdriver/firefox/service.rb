@@ -20,7 +20,6 @@
 module Selenium
   module WebDriver
     module Firefox
-
       #
       # @api private
       #
@@ -34,11 +33,11 @@ module Selenium
           server_command = [@executable_path, "--binary=#{Firefox::Binary.path}", "--webdriver-port=#{@port}", *@extra_args]
           @process       = ChildProcess.build(*server_command)
 
-          if $DEBUG == true
+          if $DEBUG
             @process.io.inherit!
           elsif Platform.windows?
             # workaround stdio inheritance issue
-            # https://github.com/jgraham/wires/issues/48
+            # https://github.com/mozilla/geckodriver/issues/48
             @process.io.stdout = @process.io.stderr = File.new(Platform.null_device, 'w')
           end
 
@@ -47,19 +46,21 @@ module Selenium
 
         def stop_process
           super
-          if Platform.windows? && !$DEBUG
-            @process.io.close rescue nil
+          return unless Platform.windows? && !$DEBUG
+          begin
+            @process.io.close
+          rescue
+            nil
           end
         end
 
         def stop_server
-          connect_to_server { |http| http.head("/shutdown") }
+          connect_to_server { |http| http.head('/shutdown') }
         end
 
         def cannot_connect_error_text
-          "unable to connect to Mozilla Wires #{@host}:#{@port}"
+          "unable to connect to Mozilla geckodriver #{@host}:#{@port}"
         end
-
       end # Service
     end # Firefox
   end # WebDriver

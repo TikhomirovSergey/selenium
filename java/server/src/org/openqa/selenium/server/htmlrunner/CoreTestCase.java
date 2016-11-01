@@ -20,16 +20,24 @@ package org.openqa.selenium.server.htmlrunner;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.thoughtworks.selenium.Selenium;
+import com.thoughtworks.selenium.SeleniumException;
 
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 
+import java.util.Iterator;
 import java.util.List;
 
 public class CoreTestCase {
 
+  private static final ImmutableMap<String, CoreStepFactory> STEP_FACTORY =
+    ImmutableMap.<String, CoreStepFactory>builder()
+    .putAll(new ReflectivelyDiscoveredSteps().get())
+    .putAll(new NonReflectiveSteps().get())
+    .build();
   private String url;
 
   public CoreTestCase(String url) {
@@ -42,13 +50,18 @@ public class CoreTestCase {
       driver.get(url);
     }
 
-    List<CoreTestStep> steps = findCommands(driver);
-    for (CoreTestStep step : steps) {
-      step.run(results, driver, selenium);
+    List<CoreStep> steps = findCommands(driver);
+    for (CoreStep step : steps) {
+      try {
+        step.execute(selenium);
+      } catch (SeleniumException e) {
+        results.addTestFailure();
+        return;
+      }
     }
   }
 
-  private List<CoreTestStep> findCommands(WebDriver driver) {
+  private List<CoreStep> findCommands(WebDriver driver) {
     // Let's just run and hide in the horror that is JS for the sake of speed.
     List<List<String>> rawSteps = (List<List<String>>) ((JavascriptExecutor) driver).executeScript(
       "var toReturn = [];\n" +
@@ -64,9 +77,14 @@ public class CoreTestCase {
       "}\n" +
       "return toReturn;");
 
-    ImmutableList.Builder<CoreTestStep> steps = ImmutableList.builder();
-    for (List<String> rawStep: rawSteps) {
-      steps.add(new CoreTestStep(rawStep.get(0), rawStep.get(1), rawStep.get(2)));
+    ImmutableList.Builder<CoreStep> steps = ImmutableList.builder();
+    Iterator<List<String>> stepIterator = rawSteps.iterator();
+    while (stepIterator.hasNext()) {
+      List<String> step =  stepIterator.next();
+      if (!STEP_FACTORY.containsKey(step.get(0))) {
+        throw new SeleniumException("Unknown command: " + step.get(0));
+      }
+      steps.add(STEP_FACTORY.get(step.get(0)).create(stepIterator, step.get(1), step.get(2)));
     }
     return steps.build();
   }
