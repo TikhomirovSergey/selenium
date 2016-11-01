@@ -1,5 +1,4 @@
 require 'childprocess'
-require 'java'
 require 'rake-tasks/checks'
 
 module Buck
@@ -186,6 +185,7 @@ rule /\/\/.*:zip/ => [ proc {|task_name| task_name[0..-5]} ] do |task|
 
       output.lines do |line|
         line.chomp!
+        line = line.gsub(/\\/, "/")
 
         if line =~ /gen\/third_party\/.*\.jar/
           third_party.push(line)
@@ -204,7 +204,12 @@ rule /\/\/.*:zip/ => [ proc {|task_name| task_name[0..-5]} ] do |task|
       first_party.each do |jar|
         sh "cd #{working_dir}/uber && jar xf #{jar}"
       end
-      sh "cd #{working_dir}/uber && jar cMf ../#{target}-nodeps.jar *"
+
+      # TODO: Don't do this. It's sinful.
+      version = File.open('SELENIUM_VERSION', &:gets).chomp
+      version = eval(version)
+
+      sh "cd #{working_dir}/uber && jar cMf ../#{target}-#{version}-nodeps.jar *"
       # TODO: Get the sources of all deps too and build the -src.jar
       rm_rf "#{working_dir}/uber"
 
@@ -224,7 +229,9 @@ rule /\/\/.*/ do |task|
   # cases where the rule was not created by CrazyFun. Rules created by the "rule" method will
   # be a FileTask, whereas those created by CrazyFun are normal rake Tasks.
 
-  if task.class == Rake::FileTask && !task.out
+  buck_file = task.name[/\/\/([^:]+)/, 1] + "/BUCK"
+
+  if task.class == Rake::FileTask && !task.out && File.exists?(buck_file)
     task.enhance do
       Buck::buck_cmd.call('build', ['--deep', task.name])
     end

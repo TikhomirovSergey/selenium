@@ -212,7 +212,7 @@ class RemoteConnection(object):
             Command.GET_TITLE: ('GET', '/session/$sessionId/title'),
             Command.GET_PAGE_SOURCE: ('GET', '/session/$sessionId/source'),
             Command.SCREENSHOT: ('GET', '/session/$sessionId/screenshot'),
-            Command.ELEMENT_SCREENSHOT: ('GET', '/session/$sessionId/screenshot/$id'),
+            Command.ELEMENT_SCREENSHOT: ('GET', '/session/$sessionId/element/$id/screenshot'),
             Command.FIND_ELEMENT: ('POST', '/session/$sessionId/element'),
             Command.FIND_ELEMENTS: ('POST', '/session/$sessionId/elements'),
             Command.GET_ACTIVE_ELEMENT:
@@ -252,6 +252,8 @@ class RemoteConnection(object):
                 ('GET', '/session/$sessionId/element/$id/rect'),
             Command.GET_ELEMENT_ATTRIBUTE:
                 ('GET', '/session/$sessionId/element/$id/attribute/$name'),
+            Command.GET_ELEMENT_PROPERTY:
+                ('GET', '/session/$sessionId/element/$id/property/$name'),
             Command.ELEMENT_EQUALS:
                 ('GET', '/session/$sessionId/element/$id/equals/$other'),
             Command.GET_ALL_COOKIES: ('GET', '/session/$sessionId/cookie'),
@@ -305,6 +307,10 @@ class RemoteConnection(object):
                 ('GET', '/session/$sessionId/window/$windowHandle/position'),
             Command.SET_WINDOW_POSITION:
                 ('POST', '/session/$sessionId/window/$windowHandle/position'),
+            Command.W3C_GET_WINDOW_POSITION:
+                ('GET', '/session/$sessionId/window/position'),
+            Command.W3C_SET_WINDOW_POSITION:
+                ('POST', '/session/$sessionId/window/position'),
             Command.MAXIMIZE_WINDOW:
                 ('POST', '/session/$sessionId/window/$windowHandle/maximize'),
             Command.W3C_MAXIMIZE_WINDOW:

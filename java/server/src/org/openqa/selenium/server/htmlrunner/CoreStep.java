@@ -20,5 +20,5 @@ package org.openqa.selenium.server.htmlrunner;
 import com.thoughtworks.selenium.Selenium;
 
 public interface CoreStep {
-  Object execute(Selenium selenium);
+  NextStepDecorator execute(Selenium selenium, TestState state);
 }

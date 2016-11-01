@@ -25,7 +25,9 @@ import com.google.common.collect.ImmutableMap;
 import com.thoughtworks.selenium.SeleneseTestBase;
 import com.thoughtworks.selenium.Selenium;
 import com.thoughtworks.selenium.SeleniumException;
+import com.thoughtworks.selenium.Wait;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,7 +41,7 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
   private static final Logger LOG = Logger.getLogger("Selenium Core Step");
 
   private static Supplier<ImmutableMap<String, CoreStepFactory>> REFLECTIVE_STEPS =
-    Suppliers.memoize(() -> discover());
+    Suppliers.memoize(ReflectivelyDiscoveredSteps::discover);
 
   public ImmutableMap<String, CoreStepFactory> get() {
     return REFLECTIVE_STEPS.get();
@@ -68,8 +70,8 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
         continue;
       }
 
-      CoreStepFactory factory = ((remainingSteps, locator, value) -> (selenium) ->
-        invokeMethod(method, selenium, buildArgs(method, locator, value)));
+      CoreStepFactory factory = ((locator, value) -> (selenium, state) ->
+        invokeMethod(method, selenium, locator, value, (result -> NextStepDecorator.IDENTITY)));
 
       factories.put(method.getName(), factory);
 
@@ -77,61 +79,216 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
       // getFoo, assertFoo, verifyFoo, assertNotFoo, verifyNotFoo
       // storeFoo, waitForFoo, and waitForNotFoo.
       final String shortName;
+      boolean isAccessor;
       if (method.getName().startsWith("get")) {
         shortName = method.getName().substring("get".length());
+        isAccessor = true;
       } else if (method.getName().startsWith("is")) {
         shortName = method.getName().substring("is".length());
+        isAccessor = true;
       } else {
         shortName = null;
+        isAccessor = false;
       }
 
-      if (shortName != null && method.getParameterCount() < 2) {
+      if (shortName != null) {
         String negatedName = negateName(shortName);
 
-        factories.put("assert" + shortName, ((remainingSteps, locator, value) -> (selenium) -> {
-          Object seen = invokeMethod(method, selenium, buildArgs(method, locator, value));
-          String expected = getExpectedValue(method, locator, value);
+        factories.put(
+          "assert" + shortName,
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (seen -> {
+              Object expected = getExpectedValue(method, state.expand(loc), state.expand(val));
+              try {
+                SeleneseTestBase.assertEquals(expected, seen);
+              } catch (AssertionError e) {
+                return NextStepDecorator.ASSERTION_FAILED(e.getMessage());
+              }
+              return NextStepDecorator.IDENTITY;
+            })));
 
-          SeleneseTestBase.assertEquals(expected, seen);
-          return null;
-        }));
+        factories.put(
+          "assert" + negatedName,
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (seen) -> {
+              Object expected = getExpectedValue(method, state.expand(loc), state.expand(val));
 
-        factories.put("assert" + negatedName, ((remainingSteps, locator, value) -> (selenium) -> {
-          Object seen = invokeMethod(method, selenium, buildArgs(method, locator, value));
-          String expected = getExpectedValue(method, locator, value);
+              try {
+                SeleneseTestBase.assertNotEquals(expected, seen);
+                return NextStepDecorator.IDENTITY;
+              } catch (AssertionError e) {
+                return NextStepDecorator.ASSERTION_FAILED(e.getMessage());
+              }
+            }));
 
-          SeleneseTestBase.assertNotEquals(expected, seen);
-          return null;
-        }));
+        factories.put(
+          "verify" + shortName,
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (seen) -> {
+              Object expected = getExpectedValue(method, state.expand(loc), state.expand(val));
 
-        factories.put("verify" + shortName, ((remainingSteps, locator, value) -> (selenium) -> {
-          Object seen = invokeMethod(method, selenium, buildArgs(method, locator, value));
-          String expected = getExpectedValue(method, locator, value);
+              try {
+                SeleneseTestBase.assertEquals(expected, seen);
+                return NextStepDecorator.IDENTITY;
+              } catch (AssertionError e) {
+                return NextStepDecorator.VERIFICATION_FAILED(e.getMessage());
+              }
+            }));
 
-          // TODO: Not this. Actual verification.
-          SeleneseTestBase.assertEquals(expected, seen);
-          return null;
-        }));
+        factories.put(
+          "verify" + negatedName,
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (seen) -> {
+              Object expected = getExpectedValue(method, state.expand(loc), state.expand(val));
 
-        factories.put("verify" + negatedName, ((remainingSteps, locator, value) -> (selenium) -> {
-          Object seen = invokeMethod(method, selenium, buildArgs(method, locator, value));
-          String expected = getExpectedValue(method, locator, value);
-
-          // TODO: Not this. Actual verification.
-          SeleneseTestBase.assertNotEquals(expected, seen);
-          return null;
-        }));
+              try {
+                SeleneseTestBase.assertNotEquals(expected, seen);
+                return NextStepDecorator.IDENTITY;
+              } catch (AssertionError e) {
+                return NextStepDecorator.VERIFICATION_FAILED(e.getMessage());
+              }
+            }));
       }
 
-      factories.put(
-        method.getName() + "AndWait",
-        ((remainingSteps, locator, value) -> (selenium -> {
-          Object result = invokeMethod(method, selenium, buildArgs(method, locator, value));
-          // TODO: Hard coding this is obviously bogus
-          selenium.waitForPageToLoad("30000");
-          return result;
-        })));
-    }
+      if (isAccessor) {
+        factories.put(
+          "store" + shortName,
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (toStore) -> {
+              state.store(state.expand(loc), toStore);
+              return NextStepDecorator.IDENTITY;
+            }));
+
+        factories.put(
+          "waitFor" + shortName,
+          (loc, val) -> (selenium, state) -> {
+            String[] args = buildArgs(method, state.expand(loc), state.expand(val));
+
+            try {
+              new Wait() {
+                @Override
+                public boolean until() {
+                  try {
+                    Object result = method.invoke(selenium, args);
+                    if (Boolean.class.isAssignableFrom(result.getClass())) {
+                      return (Boolean) result;
+                    }
+                    return true;
+                  } catch (IllegalAccessException e) {
+                    // It's going to be interesting to see this be thrown
+                    throw new RuntimeException(e);
+                  } catch (InvocationTargetException e) {
+                    return false;
+                  }
+                }
+              }.wait("Can't wait for " + shortName);
+            } catch (Wait.WaitTimedOutException e) {
+              return NextStepDecorator.ERROR(e);
+            }
+            return NextStepDecorator.IDENTITY;
+          });
+
+        factories.put(
+          "waitFor" + negateName(shortName),
+          (loc, val) -> (selenium, state) -> {
+            String[] args = buildArgs(method, state.expand(loc), state.expand(val));
+
+            try {
+              new Wait() {
+                @Override
+                public boolean until() {
+                  try {
+                    Object result = method.invoke(selenium, args);
+                    if (Boolean.class.isAssignableFrom(result.getClass())) {
+                      return !(Boolean) result;
+                    }
+                    return false;
+                  } catch (IllegalAccessException e) {
+                    // It's going to be interesting to see this be thrown
+                    throw new RuntimeException(e);
+                  } catch (InvocationTargetException e) {
+                    return true;
+                  }
+                }
+              }.wait("Managed to wait for " + shortName);
+            } catch (Wait.WaitTimedOutException e) {
+              return NextStepDecorator.ERROR(e);
+            }
+            return NextStepDecorator.IDENTITY;
+          });
+
+
+//        factories.put(
+//          "waitFor" + shortName,
+//          (loc, val) -> (selenium, state) -> {
+//            String locator = state.expand(loc);
+//            String value = state.expand(val);
+//
+//            String[] args = buildArgs(method, locator, value);
+//
+//            new Wait() {
+//              @Override
+//              public boolean until() {
+//                invokeMethod(method, selenium, buildArgs(method, state.expand(loc), state.expand(val)));
+//                return true;
+//              }
+//            }.wait("Can't wait for " + shortName);
+//            return NextStepDecorator.IDENTITY;
+//          });
+//
+//        factories.put(
+//          "waitFor" + negateName(shortName),
+//          (loc, val) -> (selenium, state) -> {
+//            String locator = state.expand(loc);
+//            String value = state.expand(val);
+//            try {
+//              new Wait() {
+//                @Override
+//                public boolean until() {
+//                  invokeMethod(method, selenium, buildArgs(method, locator, value));
+//                  return true;
+//                }
+//              }.wait("Can't wait for " + shortName);
+//              return NextStepDecorator.ASSERTION_FAILED("Wait succeeded but should have failed");
+//            } catch (Wait.WaitTimedOutException e) {
+//              return NextStepDecorator.IDENTITY;
+//            }
+//          });
+      }
+
+        factories.put(
+          method.getName() + "AndWait",
+          (loc, val) -> (selenium, state) -> invokeMethod(
+            method,
+            selenium,
+            state.expand(loc),
+            state.expand(val),
+            (seen) -> {
+              // TODO: Hard coding this is obviously bogus
+              selenium.waitForPageToLoad("30000");
+              return NextStepDecorator.IDENTITY;
+            }));
+      }
 
     return factories.build();
   }
@@ -149,11 +306,11 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
     String[] args = new String[method.getParameterCount()];
     switch (method.getParameterCount()) {
       case 2:
-        args[1] = value;
+        args[1] = value.trim();
         // Fall through
 
       case 1:
-        args[0] = locator;
+        args[0] = locator.trim();
         break;
 
       case 0:
@@ -163,7 +320,12 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
     return args;
   }
 
-  private static String getExpectedValue(Method method, String locator, String value) {
+  private static Object getExpectedValue(Method method, String locator, String value) {
+    Class<?> returnType = method.getReturnType();
+    if (returnType.equals(boolean.class) || returnType.equals(Boolean.class)) {
+      return true;
+    }
+
     switch (method.getParameterCount()) {
       case 0:
         return locator;
@@ -176,13 +338,23 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
     }
   }
 
-  private static Object invokeMethod(Method method, Selenium selenium, String[] args) {
+  private static NextStepDecorator invokeMethod(
+    Method method,
+    Selenium selenium,
+    String locator,
+    String value,
+    OnSuccess onSuccess) {
+    String[] args = buildArgs(method, locator, value);
     try {
-      return method.invoke(selenium, args);
+      Object result = method.invoke(selenium, args);
+      return onSuccess.handle(result);
     } catch (ReflectiveOperationException e) {
       for (Throwable cause = e; cause != null; cause = cause.getCause()) {
         if (cause instanceof SeleniumException) {
-          throw (SeleniumException) cause;
+          return NextStepDecorator.ERROR(cause);
+        }
+        if (cause instanceof Wait.WaitTimedOutException) {
+          return NextStepDecorator.ERROR(cause);
         }
       }
       throw new CoreRunnerError(
@@ -193,4 +365,9 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
         e);
     }
   }
+
+  private interface OnSuccess {
+    NextStepDecorator handle(Object result);
+  }
+
 }

@@ -9,6 +9,9 @@ java_binary(name = 'selenium',
   deps = [
     ':classes',
   ],
+  visibility = [
+    '//java/client/test/org/openqa/selenium/testing/drivers:drivers',
+  ]
 )
 
 genrule(name = 'manifest',
@@ -21,9 +24,10 @@ python_binary(name = 'generate-build-info',
 )
 
 java_library(name = 'classes',
+  maven_coords = 'org.seleniumhq.selenium:selenium-server:' + SE_VERSION,
+  maven_pom_template = '//java/client/src/org/openqa/selenium:template-pom',
   srcs = glob(['**/*.java']),
   deps = [
-    '//java/client/src/com/thoughtworks/selenium/webdriven:webdriven',
     '//java/client/src/org/openqa/selenium:selenium',
     '//java/client/src/org/openqa/selenium:client-combined',
     '//java/server/src/org/openqa/grid:grid',

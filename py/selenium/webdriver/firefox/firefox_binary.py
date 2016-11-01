@@ -46,7 +46,7 @@ class FirefoxBinary(object):
         if self._start_cmd is None:
             self._start_cmd = self._get_firefox_start_cmd()
         if not self._start_cmd.strip():
-            raise Exception("Failed to find firefox binary. You can set it by specifying the path to 'firefox_binary':\n\nfrom selenium.webdriver.firefox.firefox_binary import FirefoxBinary\n\n" +
+            raise WebDriverException("Failed to find firefox binary. You can set it by specifying the path to 'firefox_binary':\n\nfrom selenium.webdriver.firefox.firefox_binary import FirefoxBinary\n\n" +
                             "binary = FirefoxBinary('/path/to/binary')\ndriver = webdriver.Firefox(firefox_binary=binary)")
         # Rather than modifying the environment of the calling Python process
         # copy it and modify as needed.
@@ -102,7 +102,8 @@ class FirefoxBinary(object):
             if count >= timeout:
                 self.kill()
                 raise WebDriverException(
-                    "Can't load the profile. Profile "
+                    "Can't load the profile. Possible firefox version mismatch. "
+                    "You must use GeckoDriver instead for Firefox 48+. Profile "
                     "Dir: %s If you specified a log_file in the "
                     "FirefoxBinary constructor, check it for details."
                     % (self.profile.path))

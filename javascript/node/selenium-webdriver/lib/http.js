@@ -28,6 +28,7 @@
 const cmd = require('./command');
 const error = require('./error');
 const logging = require('./logging');
+const promise = require('./promise');
 const Session = require('./session').Session;
 const WebElement = require('./webdriver').WebElement;
 
@@ -196,9 +197,12 @@ const COMMAND_MAP = new Map([
 
 /** @const {!Map<string, {method: string, path: string}>} */
 const W3C_COMMAND_MAP = new Map([
+  [cmd.Name.GET_ACTIVE_ELEMENT, get('/session/:sessionId/element/active')],
+  [cmd.Name.MAXIMIZE_WINDOW, post('/session/:sessionId/window/maximize')],
+  [cmd.Name.GET_WINDOW_POSITION, get('/session/:sessionId/window/position')],
+  [cmd.Name.SET_WINDOW_POSITION, post('/session/:sessionId/window/position')],
   [cmd.Name.GET_WINDOW_SIZE, get('/session/:sessionId/window/size')],
   [cmd.Name.SET_WINDOW_SIZE, post('/session/:sessionId/window/size')],
-  [cmd.Name.MAXIMIZE_WINDOW, post('/session/:sessionId/window/maximize')],
 ]);
 
 
@@ -222,6 +226,29 @@ class Client {
 }
 
 
+const CLIENTS =
+    /** !WeakMap<!Executor, !(Client|IThenable<!Client>)> */new WeakMap;
+
+
+/**
+ * Sends a request using the given executor.
+ * @param {!Executor} executor
+ * @param {!Request} request
+ * @return {!Promise<Response>}
+ */
+function doSend(executor, request) {
+  const client = CLIENTS.get(executor);
+  if (promise.isPromise(client)) {
+    return client.then(client => {
+      CLIENTS.set(executor, client);
+      return client.send(request);
+    });
+  } else {
+    return client.send(request);
+  }
+}
+
+
 /**
  * A command executor that communicates with the server using JSON over HTTP.
  *
@@ -237,12 +264,12 @@ class Client {
  */
 class Executor {
   /**
-   * @param {!Client} client The client to use for sending requests to the
-   *     server.
+   * @param {!(Client|IThenable<!Client>)} client The client to use for sending
+   *     requests to the server, or a promise-like object that will resolve to
+   *     to the client.
    */
   constructor(client) {
-    /** @private {!Client} */
-    this.client_ = client;
+    CLIENTS.set(this, client);
 
     /**
      * Whether this executor should use the W3C wire protocol. The executor
@@ -297,7 +324,7 @@ class Executor {
 
     let log = this.log_;
     log.finer(() => '>>>\n' + request);
-    return this.client_.send(request).then(response => {
+    return doSend(this, request).then(response => {
       log.finer(() => '<<<\n' + response);
 
       let parsed =
@@ -320,7 +347,9 @@ class Executor {
         return new Session(parsed['sessionId'], parsed['value']);
       }
 
-      if (parsed) {
+      if (parsed
+          && typeof parsed === 'object'
+          && 'value' in parsed) {
         let value = parsed['value'];
         return typeof value === 'undefined' ? null : value;
       }
@@ -349,7 +378,7 @@ function tryParse(str) {
  * @param {!Response} httpResponse The HTTP response to parse.
  * @param {boolean} w3c Whether the response should be processed using the
  *     W3C wire protocol.
- * @return {{value: ?}} The parsed response.
+ * @return {?} The parsed response.
  * @throws {WebDriverError} If the HTTP response is an error.
  */
 function parseHttpResponse(httpResponse, w3c) {
@@ -369,11 +398,7 @@ function parseHttpResponse(httpResponse, w3c) {
     } else {
       error.checkLegacyResponse(parsed);
     }
-
-    if (!parsed || typeof parsed !== 'object') {
-      parsed = {value: parsed};
-    }
-    return parsed
+    return parsed;
   }
 
   let value = httpResponse.body.replace(/\r\n/g, '\n');
@@ -386,7 +411,7 @@ function parseHttpResponse(httpResponse, w3c) {
     throw new error.WebDriverError(value);
   }
 
-  return {value: value || null};
+  return value || null;
 }
 
 

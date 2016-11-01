@@ -41,32 +41,30 @@ module Selenium
         expect(driver.find_element(id: 'dynamo').text).to eq("What's for dinner?")
       end
 
-      not_compliant_on browser: :iphone do
-        context 'screenshots' do
-          it 'should save' do
-            driver.navigate.to url_for('xhtmlTest.html')
-            path = 'screenshot_tmp.png'
+      context 'screenshots' do
+        it 'should save' do
+          driver.navigate.to url_for('xhtmlTest.html')
+          path = 'screenshot_tmp.png'
 
-            begin
-              driver.save_screenshot path
-              expect(File.exist?(path)).to be true # sic
-              expect(File.size(path)).to be > 0
-            ensure
-              File.delete(path) if File.exist?(path)
-            end
+          begin
+            driver.save_screenshot path
+            expect(File.exist?(path)).to be true # sic
+            expect(File.size(path)).to be > 0
+          ensure
+            File.delete(path) if File.exist?(path)
           end
+        end
 
-          it 'should return in the specified format' do
-            driver.navigate.to url_for('xhtmlTest.html')
+        it 'should return in the specified format' do
+          driver.navigate.to url_for('xhtmlTest.html')
 
-            ss = driver.screenshot_as(:png)
-            expect(ss).to be_kind_of(String)
-            expect(ss.size).to be > 0
-          end
+          ss = driver.screenshot_as(:png)
+          expect(ss).to be_kind_of(String)
+          expect(ss.size).to be > 0
+        end
 
-          it 'raises an error when given an unknown format' do
-            expect { driver.screenshot_as(:jpeg) }.to raise_error(WebDriver::Error::UnsupportedOperationError)
-          end
+        it 'raises an error when given an unknown format' do
+          expect { driver.screenshot_as(:jpeg) }.to raise_error(WebDriver::Error::UnsupportedOperationError)
         end
       end
 
@@ -181,22 +179,20 @@ module Selenium
           expect(element.text).to eq('Foo')
         end
 
-        not_compliant_on browser: [:android] do
-          it 'should unwrap elements in deep objects' do
-            driver.navigate.to url_for('xhtmlTest.html')
-            result = driver.execute_script(<<-SCRIPT)
-        var e1 = document.getElementById('id1');
-        var body = document.body;
+        it 'should unwrap elements in deep objects' do
+          driver.navigate.to url_for('xhtmlTest.html')
+          result = driver.execute_script(<<-SCRIPT)
+      var e1 = document.getElementById('id1');
+      var body = document.body;
 
-        return {
-          elements: {'body' : body, other: [e1] }
-        };
-            SCRIPT
+      return {
+        elements: {'body' : body, other: [e1] }
+      };
+          SCRIPT
 
-            expect(result).to be_kind_of(Hash)
-            expect(result['elements']['body']).to be_kind_of(WebDriver::Element)
-            expect(result['elements']['other'].first).to be_kind_of(WebDriver::Element)
-          end
+          expect(result).to be_kind_of(Hash)
+          expect(result['elements']['body']).to be_kind_of(WebDriver::Element)
+          expect(result['elements']['other'].first).to be_kind_of(WebDriver::Element)
         end
 
         it 'should return booleans' do
@@ -214,13 +210,10 @@ module Selenium
           expect(driver.execute_script('return ["zero", "one", "two"];')).to eq(%w[zero one two])
         end
 
-        # Marionette BUG - Not finding local javascript for execution
-        not_compliant_on browser: :marionette do
-          it 'should be able to call functions on the page' do
-            driver.navigate.to url_for('javascriptPage.html')
-            driver.execute_script("displayMessage('I like cheese');")
-            expect(driver.find_element(id: 'result').text.strip).to eq('I like cheese')
-          end
+        it 'should be able to call functions on the page' do
+          driver.navigate.to url_for('javascriptPage.html')
+          driver.execute_script("displayMessage('I like cheese');")
+          expect(driver.find_element(id: 'result').text.strip).to eq('I like cheese')
         end
 
         it 'should be able to pass string arguments' do
@@ -262,7 +255,7 @@ module Selenium
         end
       end
 
-      not_compliant_on browser: [:iphone, :android] do
+      not_compliant_on browser: :phantomjs do
         describe 'execute async script' do
           before do
             driver.manage.timeouts.script_timeout = 0
@@ -280,8 +273,7 @@ module Selenium
           end
 
           # Edge BUG - https://connect.microsoft.com/IE/feedback/details/1849991/
-          not_compliant_on({driver: :remote, browser: [:marionette, :phantomjs]},
-                           {browser: :edge}) do
+          not_compliant_on browser: :edge do
             it 'times out if the callback is not invoked' do
               expect do
                 # Script is expected to be async and explicitly callback, so this should timeout.

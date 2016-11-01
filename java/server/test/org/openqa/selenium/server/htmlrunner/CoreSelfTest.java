@@ -17,81 +17,82 @@
 
 package org.openqa.selenium.server.htmlrunner;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeNotNull;
 
-import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.base.StandardSystemProperty;
 
 import com.thoughtworks.selenium.testing.SeleniumAppServer;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.openqa.selenium.Platform;
 import org.openqa.selenium.environment.webserver.AppServer;
+import org.openqa.selenium.os.CommandLine;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
-@RunWith(Parameterized.class)
 public class CoreSelfTest {
 
-  private final String browser;
-  private static AppServer server;
+  private String browser;
+  private AppServer server;
 
-  public CoreSelfTest(String browser) {
-    this.browser = browser;
+  @Before
+  public void detectBrowser() {
+    browser = System.getProperty("selenium.browser", "*googlechrome");
+
+    switch (browser) {
+      case "*firefox":
+        assumeNotNull(CommandLine.find("geckodriver"));
+        break;
+
+      case "*googlechrome":
+        assumeNotNull(CommandLine.find("chromedriver"));
+        break;
+
+      default:
+        assumeFalse("No known driver able to be found", false);
+    }
   }
 
-  @BeforeClass
-  public static void startTestServer() {
+  @Before
+  public void startTestServer() {
     server = new SeleniumAppServer();
     server.start();
   }
 
-  @AfterClass
-  public static void stopTestServer() {
+  @After
+  public void stopTestServer() {
     server.stop();
   }
 
   @Test
   public void executeTests() throws IOException {
     String testBase = server.whereIs("/selenium-server/tests");
-    File outputFile = File.createTempFile("core-test-suite", browser.replace('*', '-') + ".txt");
-    assertTrue(outputFile.delete());
-
-    new HTMLLauncher().runHTMLSuite(browser,
-                    // We need to do this because the path relativizing code in java.net.URL is
-                    // clearly having a bad day. "/selenium-server/tests" appended to "../tests/"
-                    // ends up as "/tests" rather than "/selenium-server/tests" as you'd expect.
-                    testBase + "/TestSuite.html",
-                    testBase + "/TestSuite.html",
-                    outputFile,
-                    TimeUnit.MINUTES.toMillis(5),
-                    true);
-  }
-
-  @Parameterized.Parameters
-  public static Iterable<String> parameters() {
-    ImmutableSortedSet.Builder<String> browsers = ImmutableSortedSet.naturalOrder();
-
-    //    if (CommandLine.find("wires") != null) {
-    browsers.add("*firefox");
-    //    }
-
-    switch (Platform.getCurrent().family()) {
-      case MAC:
-        //        browsers.add("*safari");
-        break;
-
-      case WINDOWS:
-        browsers.add("*iexplore");
-        break;
+    Path outputFile = Paths.get(StandardSystemProperty.JAVA_IO_TMPDIR.value())
+      .resolve("core-test-suite" + browser.replace('*', '-') + ".html");
+    if (Files.exists(outputFile)) {
+      Files.delete(outputFile);
     }
+    Files.createDirectories(outputFile.getParent());
 
-    System.out.println("browsers.build() = " + browsers.build());
-    return browsers.build();
+    String result = new HTMLLauncher()
+      .runHTMLSuite(
+        browser,
+        // We need to do this because the path relativizing code in java.net.URL is
+        // clearly having a bad day. "/selenium-server/tests" appended to "../tests/"
+        // ends up as "/tests" rather than "/selenium-server/tests" as you'd expect.
+        testBase + "/TestSuite.html",
+        testBase + "/TestSuite.html",
+        outputFile.toFile(),
+        TimeUnit.MINUTES.toSeconds(5),
+        null);
+
+    assertEquals("PASSED", result);
   }
 }

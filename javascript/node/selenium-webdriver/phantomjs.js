@@ -46,8 +46,7 @@
 
 const fs = require('fs');
 
-const executors = require('./executors'),
-    http = require('./http'),
+const http = require('./http'),
     io = require('./io'),
     capabilities = require('./lib/capabilities'),
     command = require('./lib/command'),
@@ -134,16 +133,14 @@ const WEBDRIVER_TO_PHANTOMJS_LEVEL = new Map([
  * @return {!command.Executor} The new command executor.
  */
 function createExecutor(url) {
-  return new command.DeferredExecutor(url.then(url => {
-    var client = new http.HttpClient(url);
-    var executor = new http.Executor(client);
+  let client = url.then(url => new http.HttpClient(url));
+  let executor = new http.Executor(client);
 
-    executor.defineCommand(
-        Command.EXECUTE_PHANTOM_SCRIPT,
-        'POST', '/session/:sessionId/phantom/execute');
+  executor.defineCommand(
+      Command.EXECUTE_PHANTOM_SCRIPT,
+      'POST', '/session/:sessionId/phantom/execute');
 
-    return executor;
-  }));
+  return executor;
 }
 
 /**
@@ -268,7 +265,7 @@ class Driver extends webdriver.WebDriver {
    *
    * @param {(string|!Function)} script The script to execute.
    * @param {...*} var_args The arguments to pass to the script.
-   * @return {!promise.Promise<T>} A promise that resolve to the
+   * @return {!promise.Thenable<T>} A promise that resolve to the
    *     script's return value.
    * @template T
    */

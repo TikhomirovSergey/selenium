@@ -23,6 +23,8 @@ var build = require('./build'),
     isDevMode = require('../devmode'),
     webdriver = require('../../'),
     flow = webdriver.promise.controlFlow(),
+    firefox = require('../../firefox'),
+    safari = require('../../safari'),
     remote = require('../../remote'),
     testing = require('../../testing'),
     fileserver = require('./fileserver');
@@ -146,6 +148,10 @@ function TestEnvironment(browserName, server) {
     return server || remoteUrl;
   };
 
+  this.isMarionette = function() {
+    return !noMarionette;
+  };
+
   this.browsers = function(var_args) {
     var browsersToIgnore = Array.prototype.slice.apply(arguments, [0]);
     return browsers(browserName, browsersToIgnore);
@@ -159,6 +165,10 @@ function TestEnvironment(browserName, server) {
       var parts = browserName.split(/:/, 3);
 
       if (parts[0] === LEGACY_FIREFOX) {
+        var options = builder.getFirefoxOptions() || new firefox.Options();
+        options.useGeckoDriver(false);
+        builder.setFirefoxOptions(options);
+
         parts[0] = webdriver.Browser.FIREFOX;
       }
 
@@ -168,6 +178,7 @@ function TestEnvironment(browserName, server) {
       } else if (remoteUrl) {
         builder.usingServer(remoteUrl);
       }
+
       builder.disableEnvironmentOverrides();
       return realBuild.call(builder);
     };
@@ -219,11 +230,6 @@ function suite(fn, opt_options) {
           if (browser === LEGACY_FIREFOX) {
             testing.before(function() {
               return build.of('//javascript/firefox-driver:webdriver')
-                  .onlyOnce().go();
-            });
-          } else if (browser === webdriver.Browser.SAFARI) {
-            testing.before(function() {
-              return build.of('//javascript/safari-driver:client')
                   .onlyOnce().go();
             });
           }

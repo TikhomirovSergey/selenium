@@ -30,6 +30,7 @@ module Selenium
 
       class W3CBridge
         include BridgeHelper
+        include Atoms
 
         # TODO: constant shouldn't be modified in class
         COMMANDS = {}
@@ -66,9 +67,10 @@ module Selenium
 
           opts = opts.dup
 
+          port = opts.delete(:port) || 4444
           http_client = opts.delete(:http_client) { Http::Default.new }
           desired_capabilities = opts.delete(:desired_capabilities) { W3CCapabilities.firefox }
-          url = opts.delete(:url) { "http://#{Platform.localhost}:4444/wd/hub" }
+          url = opts.delete(:url) { "http://#{Platform.localhost}:#{port}/wd/hub" }
 
           desired_capabilities = W3CCapabilities.send(desired_capabilities) if desired_capabilities.is_a? Symbol
 
@@ -124,6 +126,9 @@ module Selenium
         end
 
         def create_session(desired_capabilities)
+          # TODO - Remove this when Mozilla fixes bug
+          desired_capabilities[:browser_name] = 'firefox' if desired_capabilities[:browser_name] == 'Firefox'
+
           resp = raw_execute :newSession, {}, {desiredCapabilities: desired_capabilities}
           @session_id = resp['sessionId']
           return W3CCapabilities.json_create resp['value'] if @session_id
@@ -396,7 +401,7 @@ module Selenium
         #
 
         def click_element(element)
-          execute :elementClick, id: element
+          execute :elementClick, id: element.values.first
         end
 
         def click
@@ -436,21 +441,22 @@ module Selenium
 
         # TODO: - Implement file verification
         def send_keys_to_element(element, keys)
-          execute :elementSendKeys, {id: element}, {value: keys.join('').split(//)}
+          execute :elementSendKeys, {id: element.values.first}, {value: keys.join('').split(//)}
         end
 
         def clear_element(element)
-          execute :elementClear, id: element
+          execute :elementClear, id: element.values.first
         end
 
         def submit_element(element)
+          form = find_element_by('xpath', "./ancestor-or-self::form", element)
           execute_script("var e = arguments[0].ownerDocument.createEvent('Event');" \
                             "e.initEvent('submit', true, true);" \
-                            'if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }', element)
+                            'if (arguments[0].dispatchEvent(e)) { arguments[0].submit() }', form.as_json)
         end
 
         def drag_element(element, right_by, down_by)
-          execute :dragElement, {id: element}, {x: right_by, y: down_by}
+          execute :dragElement, {id: element.values.first}, {x: right_by, y: down_by}
         end
 
         def touch_single_tap(element)
@@ -511,23 +517,27 @@ module Selenium
         #
 
         def element_tag_name(element)
-          execute :getElementTagName, id: element
+          execute :getElementTagName, id: element.values.first
         end
 
         def element_attribute(element, name)
-          execute :getElementAttribute, id: element, name: name
+          execute_atom :getAttribute, element, name
+        end
+
+        def element_property(element, name)
+          execute :getElementProperty, id: element.values.first, name: name
         end
 
         def element_value(element)
-          execute :getElementProperty, id: element, name: 'value'
+          element_property element, 'value'
         end
 
         def element_text(element)
-          execute :getElementText, id: element
+          execute :getElementText, id: element.values.first
         end
 
         def element_location(element)
-          data = execute :getElementRect, id: element
+          data = execute :getElementRect, id: element.values.first
 
           Point.new data['x'], data['y']
         end
@@ -538,27 +548,27 @@ module Selenium
         end
 
         def element_size(element)
-          data = execute :getElementRect, id: element
+          data = execute :getElementRect, id: element.values.first
 
           Dimension.new data['width'], data['height']
         end
 
         def element_enabled?(element)
-          execute :isElementEnabled, id: element
+          execute :isElementEnabled, id: element.values.first
         end
 
         def element_selected?(element)
-          execute :isElementSelected, id: element
+          execute :isElementSelected, id: element.values.first
         end
 
         def element_displayed?(element)
           jwp = Selenium::WebDriver::Remote::Bridge::COMMANDS[:isElementDisplayed]
           self.class.command(:isElementDisplayed, jwp.first, jwp.last)
-          execute :isElementDisplayed, id: element
+          execute :isElementDisplayed, id: element.values.first
         end
 
         def element_value_of_css_property(element, prop)
-          execute :getElementCssValue, id: element, property_name: prop
+          execute :getElementCssValue, id: element.values.first, property_name: prop
         end
 
         #
@@ -566,7 +576,7 @@ module Selenium
         #
 
         def active_element
-          Element.new self, element_id_from(execute(:getActiveElement))
+          Element.new self, execute(:getActiveElement)
         end
 
         alias_method :switch_to_active_element, :active_element
@@ -575,24 +585,23 @@ module Selenium
           how, what = convert_locators(how, what)
 
           id = if parent
-                 execute :findChildElement, {id: parent}, {using: how, value: what}
+                 execute :findChildElement, {id: parent.values.first}, {using: how, value: what}
                else
                  execute :findElement, {}, {using: how, value: what}
                end
-
-          Element.new self, element_id_from(id)
+          Element.new self, id
         end
 
         def find_elements_by(how, what, parent = nil)
           how, what = convert_locators(how, what)
 
           ids = if parent
-                  execute :findChildElements, {id: parent}, {using: how, value: what}
+                  execute :findChildElements, {id: parent.values.first}, {using: how, value: what}
                 else
                   execute :findElements, {}, {using: how, value: what}
                 end
 
-          ids.map { |id| Element.new self, element_id_from(id) }
+          ids.map { |id| Element.new self, id }
         end
 
         private

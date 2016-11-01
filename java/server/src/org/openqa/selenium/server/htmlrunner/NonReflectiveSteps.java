@@ -21,21 +21,24 @@ package org.openqa.selenium.server.htmlrunner;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.primitives.Booleans;
 
 import com.thoughtworks.selenium.SeleneseTestBase;
+import com.thoughtworks.selenium.Selenium;
 import com.thoughtworks.selenium.SeleniumException;
+import com.thoughtworks.selenium.webdriven.ElementFinder;
+import com.thoughtworks.selenium.webdriven.JavascriptLibrary;
+import com.thoughtworks.selenium.webdriven.commands.SeleniumSelect;
 
-import java.util.List;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.internal.WrapsDriver;
+
 import java.util.logging.Logger;
 
 class NonReflectiveSteps {
   private static final Logger LOG = Logger.getLogger("Selenium Core Step");
-  private static final ImmutableMap<String, CoreStepFactory> wrappableSteps =
-    new ReflectivelyDiscoveredSteps().get();
 
   private static Supplier<ImmutableMap<String, CoreStepFactory>> STEPS =
-    Suppliers.memoize(() -> build());
+    Suppliers.memoize(NonReflectiveSteps::build);
 
   public ImmutableMap<String, CoreStepFactory> get() {
     return STEPS.get();
@@ -44,49 +47,153 @@ class NonReflectiveSteps {
   private static ImmutableMap<String, CoreStepFactory> build() {
     ImmutableMap.Builder<String, CoreStepFactory> steps = ImmutableMap.builder();
 
-    CoreStepFactory nextCommandFails = (remainingSteps, locator, value) -> {
-      if (!remainingSteps.hasNext()) {
-        throw new SeleniumException("Next command not present. Unable to assert failure");
-      }
-      List<String> toWrap = remainingSteps.next();
-      if (!wrappableSteps.containsKey(toWrap.get(0))) {
-        throw new SeleniumException("Unable to wrap: " + toWrap.get(0));
-      }
-
-      return (selenium -> {
-        Object result;
-
-        try {
-          result = wrappableSteps.get(toWrap.get(0)).create(null, locator, value).execute(selenium);
-        } catch (SeleniumException e) {
-          result = e.getMessage();
-        }
-
-        SeleneseTestBase.assertEquals(value, String.valueOf(result));
-        return null;
-      });
-    };
-    // Not ideal, but it'll help us move things forward
+    CoreStepFactory nextCommandFails = (locator, value) ->
+      (selenium, state) -> new NextCommandFails(state.expand(locator));
     steps.put("assertErrorOnNext", nextCommandFails);
     steps.put("assertFailureOnNext", nextCommandFails);
 
-    steps.put("echo", ((remainingSteps, locator, value) -> (selenium) -> {
+    steps.put(
+      "verifyErrorOnNext",
+      (locator, value) -> (selenium, state) -> new VerifyNextCommandFails(state.expand(locator)));
+    steps.put(
+      "verifyFailureOnNext",
+      (locator, value) -> (selenium, state) -> new VerifyNextCommandFails(state.expand(locator)));
+
+    class SelectedOption implements CoreStep {
+
+      private final String locator;
+      private final String value;
+      private final NextStepDecorator onFailure;
+
+      public SelectedOption(String locator, String value, NextStepDecorator onFailure) {
+        this.locator = locator;
+        this.value = value;
+        this.onFailure = onFailure;
+      }
+
+      @Override
+      public NextStepDecorator execute(Selenium selenium, TestState state) {
+        JavascriptLibrary library = new JavascriptLibrary();
+        ElementFinder finder = new ElementFinder(library);
+        SeleniumSelect select = new SeleniumSelect(
+          library,
+          finder,
+          ((WrapsDriver) selenium).getWrappedDriver(),
+          locator);
+
+        WebElement element = select.findOption(value);
+        if (element == null) {
+          return onFailure;
+        }
+        return NextStepDecorator.IDENTITY;
+      }
+    }
+
+    steps.put(
+      "assertSelected",
+      ((locator, value) -> new SelectedOption(
+        locator,
+        value,
+        NextStepDecorator.ASSERTION_FAILED(value + " not selected"))));
+    steps.put(
+      "verifySelected",
+      ((locator, value) -> new SelectedOption(
+        locator,
+        value,
+        NextStepDecorator.VERIFICATION_FAILED(value + " not selected"))));
+
+    steps.put("echo", ((locator, value) -> (selenium, state) -> {
       LOG.info(locator);
-      return null;
+      return NextStepDecorator.IDENTITY;
     }));
 
-    steps.put("pause", ((remainingSteps, locator, value) -> (selenium) -> {
+    steps.put("pause", ((locator, value) -> (selenium, state) -> {
       try {
-        long timeout = Long.parseLong(locator);
+        long timeout = Long.parseLong(state.expand(locator));
         Thread.sleep(timeout);
-        return null;
+        return NextStepDecorator.IDENTITY;
       } catch (NumberFormatException e) {
-        throw new SeleniumException("Unable to parse timeout: " + locator);
+        return NextStepDecorator.ERROR(
+          new SeleniumException("Unable to parse timeout: " + state.expand(locator)));
       } catch (InterruptedException e) {
         System.exit(255);
         throw new CoreRunnerError("We never get this far");
       }
     }));
+
+    steps.put("store", (((locator, value) -> ((selenium, state) -> {
+      state.store(state.expand(locator), state.expand(value));
+      return NextStepDecorator.IDENTITY;
+    }))));
+
     return steps.build();
+  }
+
+  private static class NextCommandFails extends NextStepDecorator {
+    private final String assertion;
+
+    public NextCommandFails(String assertion) {
+      this.assertion = assertion;
+    }
+
+    @Override
+    public NextStepDecorator evaluate(CoreStep nextStep, Selenium selenium, TestState state) {
+      NextStepDecorator actualResult = nextStep.execute(selenium, state);
+
+      Throwable cause = actualResult.getCause();
+      if (cause == null) {
+        return NextStepDecorator.ASSERTION_FAILED("Expected command to fail");
+      }
+
+      if (!(cause instanceof SeleniumException)) {
+        return actualResult;
+      }
+
+      try {
+        SeleneseTestBase.assertEquals(assertion, cause.getMessage());
+        return NextStepDecorator.IDENTITY;
+      } catch (AssertionError e) {
+        return NextStepDecorator.ASSERTION_FAILED(e.getMessage());
+      }
+    }
+
+    @Override
+    public boolean isOkayToContinueTest() {
+      return true;
+    }
+  }
+
+  private static class VerifyNextCommandFails extends NextStepDecorator {
+    private final String assertion;
+
+    public VerifyNextCommandFails(String assertion) {
+      this.assertion = assertion;
+    }
+
+    @Override
+    public NextStepDecorator evaluate(CoreStep nextStep, Selenium selenium, TestState state) {
+      NextStepDecorator actualResult = nextStep.execute(selenium, state);
+
+      Throwable cause = actualResult.getCause();
+      if (cause == null) {
+        return NextStepDecorator.VERIFICATION_FAILED("Expected command to fail");
+      }
+
+      if (!(cause instanceof SeleniumException)) {
+        return actualResult;
+      }
+
+      try {
+        SeleneseTestBase.assertEquals(assertion, cause.getMessage());
+        return NextStepDecorator.IDENTITY;
+      } catch (AssertionError e) {
+        return NextStepDecorator.VERIFICATION_FAILED(e.getMessage());
+      }
+    }
+
+    @Override
+    public boolean isOkayToContinueTest() {
+      return true;
+    }
   }
 }

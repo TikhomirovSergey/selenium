@@ -64,13 +64,13 @@ class Condition {
 /**
  * Defines a condition that will result in a {@link WebElement}.
  *
- * @extends {Condition<!(WebElement|promise.Promise<!WebElement>)>}
+ * @extends {Condition<!(WebElement|IThenable<!WebElement>)>}
  */
 class WebElementCondition extends Condition {
   /**
    * @param {string} message A descriptive error message. Should complete the
    *     sentence "Waiting [...]"
-   * @param {function(!WebDriver): !(WebElement|promise.Promise<!WebElement>)}
+   * @param {function(!WebDriver): !(WebElement|IThenable<!WebElement>)}
    *     fn The condition function to evaluate on each iteration of the wait
    *     loop.
    */
@@ -257,7 +257,7 @@ function fromWireValue(driver, value) {
  */
 class WebDriver {
   /**
-   * @param {!(Session|promise.Promise<!Session>)} session Either a
+   * @param {!(Session|IThenable<!Session>)} session Either a
    *     known session or a promise that will be resolved to a session.
    * @param {!command.Executor} executor The executor to use when sending
    *     commands to the browser.
@@ -265,7 +265,7 @@ class WebDriver {
    *     schedule commands through. Defaults to the active flow object.
    */
   constructor(session, executor, opt_flow) {
-    /** @private {!promise.Promise<!Session>} */
+    /** @private {!promise.Thenable<!Session>} */
     this.session_ = promise.fulfilled(session);
 
     /** @private {!command.Executor} */
@@ -308,9 +308,43 @@ class WebDriver {
 
   /**
    * Creates a new WebDriver session.
+   *
+   * By default, the requested session `capabilities` are merely "desired" and
+   * the remote end will still create a new session even if it cannot satisfy
+   * all of the requested capabilities. You can query which capabilities a
+   * session actually has using the
+   * {@linkplain #getCapabilities() getCapabilities()} method on the returned
+   * WebDriver instance.
+   *
+   * To define _required capabilities_, provide the `capabilities` as an object
+   * literal with `required` and `desired` keys. The `desired` key may be
+   * omitted if all capabilities are required, and vice versa. If the server
+   * cannot create a session with all of the required capabilities, it will
+   * return an {@linkplain error.SessionNotCreatedError}.
+   *
+   *     let required = new Capabilities().set('browserName', 'firefox');
+   *     let desired = new Capabilities().set('version', '45');
+   *     let driver = WebDriver.createSession(executor, {required, desired});
+   *
+   * This function will always return a WebDriver instance. If there is an error
+   * creating the session, such as the aforementioned SessionNotCreatedError,
+   * the driver will have a rejected {@linkplain #getSession session} promise.
+   * It is recommended that this promise is left _unhandled_ so it will
+   * propagate through the {@linkplain promise.ControlFlow control flow} and
+   * cause subsequent commands to fail.
+   *
+   *     let required = Capabilities.firefox();
+   *     let driver = WebDriver.createSession(executor, {required});
+   *
+   *     // If the createSession operation failed, then this command will also
+   *     // also fail, propagating the creation failure.
+   *     driver.get('http://www.google.com').catch(e => console.log(e));
+   *
    * @param {!command.Executor} executor The executor to create the new session
    *     with.
-   * @param {!./capabilities.Capabilities} desiredCapabilities The desired
+   * @param {(!Capabilities|
+   *          {desired: (Capabilities|undefined),
+   *           required: (Capabilities|undefined)})} capabilities The desired
    *     capabilities for the new session.
    * @param {promise.ControlFlow=} opt_flow The control flow all driver
    *     commands should execute under, including the initial session creation.
@@ -318,10 +352,17 @@ class WebDriver {
    *     control flow.
    * @return {!WebDriver} The driver for the newly created session.
    */
-  static createSession(executor, desiredCapabilities, opt_flow) {
+  static createSession(executor, capabilities, opt_flow) {
     let flow = opt_flow || promise.controlFlow();
-    let cmd = new command.Command(command.Name.NEW_SESSION)
-        .setParameter('desiredCapabilities', desiredCapabilities) ;
+    let cmd = new command.Command(command.Name.NEW_SESSION);
+
+    if (capabilities && (capabilities.desired || capabilities.required)) {
+      cmd.setParameter('desiredCapabilities', capabilities.desired);
+      cmd.setParameter('requiredCapabilities', capabilities.required);
+    } else {
+      cmd.setParameter('desiredCapabilities', capabilities);
+    }
+
     let session = flow.execute(
         () => executeCommand(executor, cmd),
         'WebDriver.createSession()');
@@ -342,7 +383,7 @@ class WebDriver {
    *
    * @param {!command.Command} command The command to schedule.
    * @param {string} description A description of the command for debugging.
-   * @return {!promise.Promise<T>} A promise that will be resolved
+   * @return {!promise.Thenable<T>} A promise that will be resolved
    *     with the command result.
    * @template T
    */
@@ -413,7 +454,7 @@ class WebDriver {
   }
 
   /**
-   * @return {!promise.Promise<!Session>} A promise for this client's
+   * @return {!promise.Thenable<!Session>} A promise for this client's
    *     session.
    */
   getSession() {
@@ -421,7 +462,7 @@ class WebDriver {
   }
 
   /**
-   * @return {!promise.Promise<!Capabilities>} A promise
+   * @return {!promise.Thenable<!Capabilities>} A promise
    *     that will resolve with the this instance's capabilities.
    */
   getCapabilities() {
@@ -432,7 +473,7 @@ class WebDriver {
    * Schedules a command to quit the current session. After calling quit, this
    * instance will be invalidated and may no longer be used to issue commands
    * against the browser.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the command has completed.
    */
   quit() {
@@ -509,7 +550,7 @@ class WebDriver {
    *
    * @param {!(string|Function)} script The script to execute.
    * @param {...*} var_args The arguments to pass to the script.
-   * @return {!promise.Promise<T>} A promise that will resolve to the
+   * @return {!promise.Thenable<T>} A promise that will resolve to the
    *    scripts return value.
    * @template T
    */
@@ -598,7 +639,7 @@ class WebDriver {
    *
    * @param {!(string|Function)} script The script to execute.
    * @param {...*} var_args The arguments to pass to the script.
-   * @return {!promise.Promise<T>} A promise that will resolve to the
+   * @return {!promise.Thenable<T>} A promise that will resolve to the
    *    scripts return value.
    * @template T
    */
@@ -616,18 +657,16 @@ class WebDriver {
 
   /**
    * Schedules a command to execute a custom function.
-   * @param {function(...): (T|promise.Promise<T>)} fn The function to
-   *     execute.
+   * @param {function(...): (T|IThenable<T>)} fn The function to execute.
    * @param {Object=} opt_scope The object in whose scope to execute the function.
    * @param {...*} var_args Any arguments to pass to the function.
-   * @return {!promise.Promise<T>} A promise that will be resolved'
+   * @return {!promise.Thenable<T>} A promise that will be resolved'
    *     with the function's result.
    * @template T
    */
   call(fn, opt_scope, var_args) {
     let args = Array.prototype.slice.call(arguments, 2);
-    let flow = this.flow_;
-    return flow.execute(function() {
+    return this.flow_.execute(function() {
       return promise.fullyResolved(args).then(function(args) {
         if (promise.isGenerator(fn)) {
           args.unshift(fn, opt_scope);
@@ -675,7 +714,7 @@ class WebDriver {
    *     driver.wait(started, 5 * 1000, 'Server should start within 5 seconds');
    *     driver.get(getServerUrl());
    *
-   * @param {!(promise.Promise<T>|
+   * @param {!(IThenable<T>|
    *           Condition<T>|
    *           function(!WebDriver): T)} condition The condition to
    *     wait on, defined as a promise, condition object, or  a function to
@@ -683,7 +722,7 @@ class WebDriver {
    * @param {number=} opt_timeout How long to wait for the condition to be true.
    * @param {string=} opt_message An optional message to use if the wait times
    *     out.
-   * @return {!(promise.Promise<T>|WebElementPromise)} A promise that will be
+   * @return {!(promise.Thenable<T>|WebElementPromise)} A promise that will be
    *     resolved with the first truthy value returned by the condition
    *     function, or rejected if the condition times out. If the input
    *     input condition is an instance of a {@link WebElementCondition},
@@ -693,7 +732,7 @@ class WebDriver {
   wait(condition, opt_timeout, opt_message) {
     if (promise.isPromise(condition)) {
       return this.flow_.wait(
-          /** @type {!promise.Promise} */(condition),
+          /** @type {!IThenable} */(condition),
           opt_timeout, opt_message);
     }
 
@@ -728,7 +767,7 @@ class WebDriver {
   /**
    * Schedules a command to make the driver sleep for the given amount of time.
    * @param {number} ms The amount of time, in milliseconds, to sleep.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the sleep has finished.
    */
   sleep(ms) {
@@ -736,8 +775,8 @@ class WebDriver {
   }
 
   /**
-   * Schedules a command to retrieve they current window handle.
-   * @return {!promise.Promise<string>} A promise that will be
+   * Schedules a command to retrieve the current window handle.
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the current window handle.
    */
   getWindowHandle() {
@@ -748,7 +787,7 @@ class WebDriver {
 
   /**
    * Schedules a command to retrieve the current list of available window handles.
-   * @return {!promise.Promise.<!Array<string>>} A promise that will
+   * @return {!promise.Thenable<!Array<string>>} A promise that will
    *     be resolved with an array of window handles.
    */
   getAllWindowHandles() {
@@ -762,7 +801,7 @@ class WebDriver {
    * returned is a representation of the underlying DOM: do not expect it to be
    * formatted or escaped in the same way as the response sent from the web
    * server.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the current page source.
    */
   getPageSource() {
@@ -773,7 +812,7 @@ class WebDriver {
 
   /**
    * Schedules a command to close the current window.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when this command has completed.
    */
   close() {
@@ -784,7 +823,7 @@ class WebDriver {
   /**
    * Schedules a command to navigate to the given URL.
    * @param {string} url The fully qualified URL to open.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the document has finished loading.
    */
   get(url) {
@@ -793,7 +832,7 @@ class WebDriver {
 
   /**
    * Schedules a command to retrieve the URL of the current page.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the current URL.
    */
   getCurrentUrl() {
@@ -804,7 +843,7 @@ class WebDriver {
 
   /**
    * Schedules a command to retrieve the current page's title.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the current page's title.
    */
   getTitle() {
@@ -818,7 +857,10 @@ class WebDriver {
    * by the driver. Unlike other commands, this error cannot be suppressed. In
    * other words, scheduling a command to find an element doubles as an assert
    * that the element is present on the page. To test whether an element is
-   * present on the page, use {@link #isElementPresent} instead.
+   * present on the page, use {@link #findElements}:
+   *
+   *     driver.findElements(By.id('foo'))
+   *         .then(found => console.log('Element found? %s', !!found.length));
    *
    * The search criteria for an element may be defined using one of the
    * factories in the {@link webdriver.By} namespace, or as a short-hand
@@ -866,7 +908,7 @@ class WebDriver {
    * @param {!Function} locatorFn The locator function to use.
    * @param {!(WebDriver|WebElement)} context The search
    *     context.
-   * @return {!promise.Promise.<!WebElement>} A
+   * @return {!promise.Thenable<!WebElement>} A
    *     promise that will resolve to a list of WebElements.
    * @private
    */
@@ -886,7 +928,7 @@ class WebDriver {
    * Schedule a command to search for multiple elements on the page.
    *
    * @param {!(by.By|Function)} locator The locator to use.
-   * @return {!promise.Promise.<!Array.<!WebElement>>} A
+   * @return {!promise.Thenable<!Array<!WebElement>>} A
    *     promise that will resolve to an array of WebElements.
    */
   findElements(locator) {
@@ -910,7 +952,7 @@ class WebDriver {
   /**
    * @param {!Function} locatorFn The locator function to use.
    * @param {!(WebDriver|WebElement)} context The search context.
-   * @return {!promise.Promise<!Array<!WebElement>>} A promise that
+   * @return {!promise.Thenable<!Array<!WebElement>>} A promise that
    *     will resolve to an array of WebElements.
    * @private
    */
@@ -939,7 +981,7 @@ class WebDriver {
    * 3. Visible portion of the current frame
    * 4. The entire display containing the browser
    *
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved to the screenshot as a base-64 encoded PNG.
    */
   takeScreenshot() {
@@ -974,7 +1016,7 @@ class WebDriver {
 /**
  * Interface for navigating back and forth in the browser history.
  *
- * This class should never be instantiated directly. Insead, obtain an instance
+ * This class should never be instantiated directly. Instead, obtain an instance
  * with
  *
  *    webdriver.navigate()
@@ -994,7 +1036,7 @@ class Navigation {
   /**
    * Schedules a command to navigate to a new URL.
    * @param {string} url The URL to navigate to.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the URL has been loaded.
    */
   to(url) {
@@ -1006,7 +1048,7 @@ class Navigation {
 
   /**
    * Schedules a command to move backwards in the browser history.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the navigation event has completed.
    */
   back() {
@@ -1017,7 +1059,7 @@ class Navigation {
 
   /**
    * Schedules a command to move forwards in the browser history.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the navigation event has completed.
    */
   forward() {
@@ -1028,7 +1070,7 @@ class Navigation {
 
   /**
    * Schedules a command to refresh the current page.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the navigation event has completed.
    */
   refresh() {
@@ -1075,7 +1117,7 @@ class Options {
    *     });
    *
    * @param {!Options.Cookie} spec Defines the cookie to add.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the cookie has been added to the page.
    * @throws {error.InvalidArgumentError} if any of the cookie parameters are
    *     invalid.
@@ -1130,7 +1172,7 @@ class Options {
 
   /**
    * Schedules a command to delete all cookies visible to the current page.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when all cookies have been deleted.
    */
   deleteAllCookies() {
@@ -1144,7 +1186,7 @@ class Options {
    * is a no-op if there is no cookie with the given name visible to the current
    * page.
    * @param {string} name The name of the cookie to delete.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the cookie has been deleted.
    */
   deleteCookie(name) {
@@ -1158,7 +1200,7 @@ class Options {
    * Schedules a command to retrieve all cookies visible to the current page.
    * Each cookie will be returned as a JSON object as described by the WebDriver
    * wire protocol.
-   * @return {!promise.Promise<!Array<!Options.Cookie>>} A promise that will be
+   * @return {!promise.Thenable<!Array<!Options.Cookie>>} A promise that will be
    *     resolved with the cookies visible to the current browsing context.
    */
   getCookies() {
@@ -1173,7 +1215,7 @@ class Options {
    * described by the WebDriver wire protocol.
    *
    * @param {string} name The name of the cookie to retrieve.
-   * @return {!promise.Promise<?Options.Cookie>} A promise that will be resolved
+   * @return {!promise.Thenable<?Options.Cookie>} A promise that will be resolved
    *     with the named cookie, or `null` if there is no such cookie.
    */
   getCookie(name) {
@@ -1324,7 +1366,7 @@ class Timeouts {
    * slower location strategies like XPath.
    *
    * @param {number} ms The amount of time to wait, in milliseconds.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the implicit wait timeout has been set.
    */
   implicitlyWait(ms) {
@@ -1337,7 +1379,7 @@ class Timeouts {
    * less than or equal to 0, the script will be allowed to run indefinitely.
    *
    * @param {number} ms The amount of time to wait, in milliseconds.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the script timeout has been set.
    */
   setScriptTimeout(ms) {
@@ -1350,7 +1392,7 @@ class Timeouts {
    * indefinite.
    *
    * @param {number} ms The amount of time to wait, in milliseconds.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the timeout has been set.
    */
   pageLoadTimeout(ms) {
@@ -1370,7 +1412,7 @@ class Timeouts {
 /**
  * An interface for managing the current window.
  *
- * This class should never be instantiated directly. Insead, obtain an instance
+ * This class should never be instantiated directly. Instead, obtain an instance
  * with
  *
  *    webdriver.manage().window()
@@ -1391,7 +1433,7 @@ class Window {
   /**
    * Retrieves the window's current position, relative to the top left corner of
    * the screen.
-   * @return {!promise.Promise.<{x: number, y: number}>} A promise
+   * @return {!promise.Thenable<{x: number, y: number}>} A promise
    *     that will be resolved with the window's position in the form of a
    *     {x:number, y:number} object literal.
    */
@@ -1408,7 +1450,7 @@ class Window {
    *     side of the screen.
    * @param {number} y The desired vertical position, relative to the top of the
    *     of the screen.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the command has completed.
    */
   setPosition(x, y) {
@@ -1422,7 +1464,7 @@ class Window {
 
   /**
    * Retrieves the window's current size.
-   * @return {!promise.Promise<{width: number, height: number}>} A
+   * @return {!promise.Thenable<{width: number, height: number}>} A
    *     promise that will be resolved with the window's size in the form of a
    *     {width:number, height:number} object literal.
    */
@@ -1437,7 +1479,7 @@ class Window {
    * Resizes the current window.
    * @param {number} width The desired window width.
    * @param {number} height The desired window height.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the command has completed.
    */
   setSize(width, height) {
@@ -1451,7 +1493,7 @@ class Window {
 
   /**
    * Maximizes the current window.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the command has completed.
    */
   maximize() {
@@ -1493,7 +1535,7 @@ class Logs {
    * entries since the last call, or from the start of the session.
    *
    * @param {!logging.Type} type The desired log type.
-   * @return {!promise.Promise.<!Array.<!logging.Entry>>} A
+   * @return {!promise.Thenable<!Array.<!logging.Entry>>} A
    *   promise that will resolve to a list of log entries for the specified
    *   type.
    */
@@ -1516,7 +1558,7 @@ class Logs {
 
   /**
    * Retrieves the log types available to this driver.
-   * @return {!promise.Promise<!Array<!logging.Type>>} A
+   * @return {!promise.Thenable<!Array<!logging.Type>>} A
    *     promise that will resolve to a list of available log types.
    */
   getAvailableLogTypes() {
@@ -1563,7 +1605,7 @@ class TargetLocator {
   /**
    * Schedules a command to switch focus of all future commands to the topmost
    * frame on the page.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the driver has changed focus to the default content.
    */
   defaultContent() {
@@ -1589,7 +1631,7 @@ class TargetLocator {
    * rejected with a {@linkplain error.NoSuchFrameError}.
    *
    * @param {(number|WebElement|null)} id The frame locator.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the driver has changed focus to the specified frame.
    */
   frame(id) {
@@ -1609,13 +1651,16 @@ class TargetLocator {
    *
    * @param {string} nameOrHandle The name or window handle of the window to
    *     switch focus to.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the driver has changed focus to the specified window.
    */
   window(nameOrHandle) {
     return this.driver_.schedule(
         new command.Command(command.Name.SWITCH_TO_WINDOW).
-            setParameter('name', nameOrHandle),
+            // "name" supports the legacy drivers. "handle" is the W3C
+            // compliant parameter.
+            setParameter('name', nameOrHandle).
+            setParameter('handle', nameOrHandle),
         'WebDriver.switchTo().window(' + nameOrHandle + ')');
   }
 
@@ -1670,7 +1715,7 @@ class WebElement {
     /** @private {!WebDriver} */
     this.driver_ = driver;
 
-    /** @private {!promise.Promise<string>} */
+    /** @private {!promise.Thenable<string>} */
     this.id_ = promise.fulfilled(id);
   }
 
@@ -1718,7 +1763,7 @@ class WebElement {
    *
    * @param {!WebElement} a A WebElement.
    * @param {!WebElement} b A WebElement.
-   * @return {!promise.Promise<boolean>} A promise that will be
+   * @return {!promise.Thenable<boolean>} A promise that will be
    *     resolved to whether the two WebElements are equal.
    */
   static equals(a, b) {
@@ -1747,7 +1792,7 @@ class WebElement {
   }
 
   /**
-   * @return {!promise.Promise<string>} A promise that resolves to
+   * @return {!promise.Thenable<string>} A promise that resolves to
    *     the server-assigned opaque ID assigned to this element.
    */
   getId() {
@@ -1768,7 +1813,7 @@ class WebElement {
    *
    * @param {!command.Command} command The command to schedule.
    * @param {string} description A description of the command for debugging.
-   * @return {!promise.Promise<T>} A promise that will be resolved
+   * @return {!promise.Thenable<T>} A promise that will be resolved
    *     with the command result.
    * @template T
    * @see WebDriver#schedule
@@ -1834,7 +1879,7 @@ class WebElement {
    *
    * @param {!(by.By|Function)} locator The locator strategy to use when
    *     searching for the element.
-   * @return {!promise.Promise<!Array<!WebElement>>} A
+   * @return {!promise.Thenable<!Array<!WebElement>>} A
    *     promise that will resolve to an array of WebElements.
    */
   findElements(locator) {
@@ -1853,7 +1898,7 @@ class WebElement {
 
   /**
    * Schedules a command to click on this element.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the click command has completed.
    */
   click() {
@@ -1915,7 +1960,7 @@ class WebElement {
    *     sequence of keys to type. Number keys may be referenced numerically or
    *     by string (1 or '1'). All arguments will be joined into a single
    *     sequence.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when all keys have been typed.
    */
   sendKeys(var_args) {
@@ -1949,14 +1994,14 @@ class WebElement {
     keys.catch(function() {});
 
     var element = this;
-    return this.driver_.flow_.execute(function() {
+    return this.getDriver().controlFlow().execute(function() {
       return keys.then(function(keys) {
         return element.driver_.fileDetector_
             .handleFile(element.driver_, keys.join(''));
       }).then(function(keys) {
         return element.schedule_(
             new command.Command(command.Name.SEND_KEYS_TO_ELEMENT).
-                setParameter('value', [keys]),
+                setParameter('value', keys.split('')),
             'WebElement.sendKeys()');
       });
     }, 'WebElement.sendKeys()');
@@ -1964,7 +2009,7 @@ class WebElement {
 
   /**
    * Schedules a command to query for the tag/node name of this element.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the element's tag name.
    */
   getTagName() {
@@ -1985,7 +2030,7 @@ class WebElement {
    *
    * @param {string} cssStyleProperty The name of the CSS style property to look
    *     up.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the requested CSS value.
    */
   getCssValue(cssStyleProperty) {
@@ -2021,7 +2066,7 @@ class WebElement {
    * - "readonly"
    *
    * @param {string} attributeName The name of the attribute to query.
-   * @return {!promise.Promise<?string>} A promise that will be
+   * @return {!promise.Thenable<?string>} A promise that will be
    *     resolved with the attribute's value. The returned value will always be
    *     either a string or null.
    */
@@ -2036,7 +2081,7 @@ class WebElement {
    * Get the visible (i.e. not hidden by CSS) innerText of this element,
    * including sub-elements, without any leading or trailing whitespace.
    *
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved with the element's visible text.
    */
   getText() {
@@ -2048,7 +2093,7 @@ class WebElement {
   /**
    * Schedules a command to compute the size of this element's bounding box, in
    * pixels.
-   * @return {!promise.Promise.<{width: number, height: number}>} A
+   * @return {!promise.Thenable<{width: number, height: number}>} A
    *     promise that will be resolved with the element's size as a
    *     {@code {width:number, height:number}} object.
    */
@@ -2060,7 +2105,7 @@ class WebElement {
 
   /**
    * Schedules a command to compute the location of this element in page space.
-   * @return {!promise.Promise.<{x: number, y: number}>} A promise that
+   * @return {!promise.Thenable<{x: number, y: number}>} A promise that
    *     will be resolved to the element's location as a
    *     {@code {x:number, y:number}} object.
    */
@@ -2073,7 +2118,7 @@ class WebElement {
   /**
    * Schedules a command to query whether the DOM element represented by this
    * instance is enabled, as dicted by the {@code disabled} attribute.
-   * @return {!promise.Promise<boolean>} A promise that will be
+   * @return {!promise.Thenable<boolean>} A promise that will be
    *     resolved with whether this element is currently enabled.
    */
   isEnabled() {
@@ -2084,7 +2129,7 @@ class WebElement {
 
   /**
    * Schedules a command to query whether this element is selected.
-   * @return {!promise.Promise<boolean>} A promise that will be
+   * @return {!promise.Thenable<boolean>} A promise that will be
    *     resolved with whether this element is currently selected.
    */
   isSelected() {
@@ -2097,7 +2142,7 @@ class WebElement {
    * Schedules a command to submit the form containing this element (or this
    * element if it is a FORM element). This command is a no-op if the element is
    * not contained in a form.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the form has been submitted.
    */
   submit() {
@@ -2110,7 +2155,7 @@ class WebElement {
    * Schedules a command to clear the `value` of this element. This command has
    * no effect if the underlying DOM element is neither a text INPUT element
    * nor a TEXTAREA element.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when the element has been cleared.
    */
   clear() {
@@ -2121,7 +2166,7 @@ class WebElement {
 
   /**
    * Schedules a command to test whether this element is currently displayed.
-   * @return {!promise.Promise<boolean>} A promise that will be
+   * @return {!promise.Thenable<boolean>} A promise that will be
    *     resolved with whether this element is currently visible on the page.
    */
   isDisplayed() {
@@ -2137,7 +2182,7 @@ class WebElement {
    * @param {boolean=} opt_scroll Optional argument that indicates whether the
    *     element should be scrolled into view before taking a screenshot.
    *     Defaults to false.
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved to the screenshot as a base-64 encoded PNG.
    */
   takeScreenshot(opt_scroll) {
@@ -2169,7 +2214,7 @@ class WebElementPromise extends WebElement {
   /**
    * @param {!WebDriver} driver The parent WebDriver instance for this
    *     element.
-   * @param {!promise.Promise<!WebElement>} el A promise
+   * @param {!promise.Thenable<!WebElement>} el A promise
    *     that will resolve to the promised element.
    */
   constructor(driver, el) {
@@ -2228,7 +2273,7 @@ class Alert {
     /** @private {!WebDriver} */
     this.driver_ = driver;
 
-    /** @private {!promise.Promise<string>} */
+    /** @private {!promise.Thenable<string>} */
     this.text_ = promise.fulfilled(text);
   }
 
@@ -2236,7 +2281,7 @@ class Alert {
    * Retrieves the message text displayed with this alert. For instance, if the
    * alert were opened with alert("hello"), then this would return "hello".
    *
-   * @return {!promise.Promise<string>} A promise that will be
+   * @return {!promise.Thenable<string>} A promise that will be
    *     resolved to the text displayed with this alert.
    */
   getText() {
@@ -2250,7 +2295,7 @@ class Alert {
    *
    * @param {string} username The username to send.
    * @param {string} password The password to send.
-   * @return {!promise.Promise<void>} A promise that will be resolved when this
+   * @return {!promise.Thenable<void>} A promise that will be resolved when this
    *     command has completed.
    */
   authenticateAs(username, password) {
@@ -2263,7 +2308,7 @@ class Alert {
   /**
    * Accepts this alert.
    *
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when this command has completed.
    */
   accept() {
@@ -2275,7 +2320,7 @@ class Alert {
   /**
    * Dismisses this alert.
    *
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when this command has completed.
    */
   dismiss() {
@@ -2290,7 +2335,7 @@ class Alert {
    * window.confirm).
    *
    * @param {string} text The text to set.
-   * @return {!promise.Promise<void>} A promise that will be resolved
+   * @return {!promise.Thenable<void>} A promise that will be resolved
    *     when this command has completed.
    */
   sendKeys(text) {
@@ -2313,7 +2358,7 @@ class Alert {
  *       return alert.dismiss();
  *     });
  *
- * @implements {promise.Thenable.<!webdriver.Alert>}
+ * @implements {promise.Thenable<!webdriver.Alert>}
  * @final
  */
 class AlertPromise extends Alert {

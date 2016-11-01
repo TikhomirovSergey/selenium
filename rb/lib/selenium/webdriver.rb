@@ -24,6 +24,7 @@ require 'date'
 require 'json'
 
 require 'selenium/webdriver/common'
+require 'selenium/webdriver/atoms'
 
 module Selenium
   module WebDriver
@@ -31,12 +32,10 @@ module Selenium
     Dimension = Struct.new(:width, :height)
     Location  = Struct.new(:latitude, :longitude, :altitude)
 
-    autoload :Android,   'selenium/webdriver/android'
     autoload :Chrome,    'selenium/webdriver/chrome'
     autoload :Edge,      'selenium/webdriver/edge'
     autoload :Firefox,   'selenium/webdriver/firefox'
     autoload :IE,        'selenium/webdriver/ie'
-    autoload :IPhone,    'selenium/webdriver/iphone'
     autoload :PhantomJS, 'selenium/webdriver/phantomjs'
     autoload :Remote,    'selenium/webdriver/remote'
     autoload :Safari,    'selenium/webdriver/safari'
@@ -51,7 +50,7 @@ module Selenium
     #
     # Create a new Driver instance with the correct bridge for the given browser
     #
-    # @param browser [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :android, :iphone, :phantomjs, :safari]
+    # @param browser [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :phantomjs, :safari]
     #   the driver type to use
     # @param *rest
     #   arguments passed to Bridge.new
@@ -63,8 +62,6 @@ module Selenium
     # @see Selenium::WebDriver::IE::Bridge
     # @see Selenium::WebDriver::Edge::Bridge
     # @see Selenium::WebDriver::Chrome::Bridge
-    # @see Selenium::WebDriver::Android::Bridge
-    # @see Selenium::WebDriver::IPhone::Bridge
     # @see Selenium::WebDriver::PhantomJS::Bridge
     # @see Selenium::WebDriver::Safari::Bridge
     #

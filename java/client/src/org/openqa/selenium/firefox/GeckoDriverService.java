@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.net.PortProber;
 import org.openqa.selenium.firefox.internal.Executable;
-import org.openqa.selenium.os.CommandLine;
 import org.openqa.selenium.remote.service.DriverService;
 
 import java.io.File;
@@ -79,30 +78,40 @@ public class GeckoDriverService extends DriverService {
   public static class Builder extends DriverService.Builder<
     GeckoDriverService, GeckoDriverService.Builder> {
 
+    private Executable binary;
+    public Builder() {
+      this(new FirefoxBinary());
+    }
+
+    /**
+     * @param binary - A custom location where the Firefox binary is available.
+     */
+    public Builder(FirefoxBinary binary) {
+      this.binary = binary.getExecutable();
+    }
+
     @Override
     protected File findDefaultExecutable() {
-      // We should really look for geckodriver, but the old name was wires. Look for both.
-      try {
-        return findExecutable("geckodriver", GECKO_DRIVER_EXE_PROPERTY,
-                              "https://github.com/mozilla/geckodriver",
-                              "https://github.com/mozilla/geckodriver/releases");
-      } catch (IllegalStateException e) {
-        // Geckodriver not found. Fall back to wires
-        return findExecutable("wires", GECKO_DRIVER_EXE_PROPERTY,
-                              "https://github.com/mozilla/geckodriver",
-                              "https://github.com/mozilla/geckodriver/releases");
-      }
+      return findExecutable(
+        "geckodriver", GECKO_DRIVER_EXE_PROPERTY,
+        "https://github.com/mozilla/geckodriver",
+        "https://github.com/mozilla/geckodriver/releases");
     }
 
     @Override
     protected ImmutableList<String> createArgs() {
       ImmutableList.Builder<String> argsBuilder = ImmutableList.builder();
-      argsBuilder.add(String.format("--webdriver-port=%d", getPort()));
+      argsBuilder.add(String.format("--port=%d", getPort()));
       if (getLogFile() != null) {
         argsBuilder.add(String.format("--log-file=\"%s\"", getLogFile().getAbsolutePath()));
       }
-      argsBuilder.add("-b");
-      argsBuilder.add(new Executable(null).getPath());
+      try {
+        argsBuilder.add("-b");
+        argsBuilder.add(binary.getPath());
+      } catch (WebDriverException e) {
+        // Unable to find Firefox. GeckoDriver will be responsible for finding
+        // Firefox on the PATH or via a capability.
+      }
       return argsBuilder.build();
     }
 

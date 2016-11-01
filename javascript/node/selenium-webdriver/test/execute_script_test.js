@@ -17,7 +17,6 @@
 
 'use strict';
 
-var path = require('path');
 var fail = require('assert').fail;
 
 var webdriver = require('..'),
@@ -47,7 +46,7 @@ test.suite(function(env) {
 
     test.it('fails if script throws', function() {
       execute('throw new Error("boom")')
-          .then(function() { throw shoudlHaveFailed; })
+          .then(function() { throw shouldHaveFailed; })
           .catch(function(e) {
             // The java WebDriver server adds a bunch of crap to error messages.
             // Error message will just be "JavaScript error" for IE.
@@ -57,7 +56,7 @@ test.suite(function(env) {
 
     test.it('fails if script does not parse', function() {
       execute('throw function\\*')
-          .then(function() { throw shoudlHaveFailed; })
+          .then(function() { throw shouldHaveFailed; })
           .catch(function(e) {
             assert(e).notEqualTo(shouldHaveFailed);
           });
@@ -115,7 +114,7 @@ test.suite(function(env) {
             .then(verifyJson([[1, 2, [3]]]));
       });
 
-      test.ignore(env.browsers(Browser.IE, Browser.SAFARI)).
+      test.ignore(env.browsers(Browser.IE)).
       it('can return empty object literal', function() {
         execute('return {}').then(verifyJson({}));
       });
@@ -207,7 +206,8 @@ test.suite(function(env) {
         assert(execute('return arguments.length', 1, 'a', false)).equalTo(3);
       });
 
-      test.it('can return arguments object as array', function() {
+      test.ignore(env.browsers(Browser.FIREFOX, Browser.SAFARI)).
+      it('can return arguments object as array', function() {
         execute('return arguments', 1, 'a', false).then(function(val) {
           assert(val.length).equalTo(3);
           assert(val[0]).equalTo(1);

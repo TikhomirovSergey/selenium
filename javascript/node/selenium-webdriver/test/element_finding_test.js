@@ -153,7 +153,9 @@ test.suite(function(env) {
                 });
           });
 
-      test.it('works on XHTML pages', function() {
+      // See https://github.com/mozilla/geckodriver/issues/137
+      test.ignore(browsers(Browser.FIREFOX)).
+      it('works on XHTML pages', function() {
         driver.get(test.whereIs('actualXhtmlPage.xhtml'));
 
         var el = driver.findElement(By.linkText('Foo'));
@@ -379,7 +381,7 @@ test.suite(function(env) {
           }).then(links => links[0]);
         });
 
-        assert(link.getText()).isEqualTo('Update a div');
+        assert(link.getText()).matches(/Update\s+a\s+div/);
       });
 
       test.it('uses first element if locator resolves to list', function() {
@@ -402,6 +404,20 @@ test.suite(function(env) {
         return link.then(
             () => fail('Should have failed'),
             (e) => assert(e).instanceOf(TypeError));
+      });
+    });
+
+    describe('switchTo().activeElement()', function() {
+      test.it('returns document.activeElement', function() {
+        driver.get(Pages.formPage);
+
+        let email = driver.findElement(By.css('#email'));
+        driver.executeScript('arguments[0].focus()', email);
+
+        let ae = driver.switchTo().activeElement();
+        let equal = driver.executeScript(
+            'return arguments[0] === arguments[1]', email, ae);
+        assert(equal).isTrue();
       });
     });
   });

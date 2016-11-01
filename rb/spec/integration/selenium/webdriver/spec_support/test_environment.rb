@@ -120,10 +120,7 @@ module Selenium
         end
 
         def url_for(filename)
-          url = app_server.where_is filename
-          url.sub!('127.0.0.1', '10.0.2.2') if browser == :android
-
-          url
+          app_server.where_is filename
         end
 
         def root
@@ -149,8 +146,17 @@ module Selenium
 
         def remote_capabilities
           opt = {}
-          browser_name = browser == :marionette ? :firefox : browser
-          opt[:marionette] = false if browser == :firefox
+          browser_name = if browser == :ff_legacy
+                           unless ENV['FF_LEGACY_BINARY']
+                             raise DriverInstantiationError, "ENV['FF_LEGACY_BINARY'] must be set to test legacy firefox"
+                           end
+
+                           opt[:firefox_binary] = ENV['FF_LEGACY_BINARY']
+                           opt[:marionette] = false
+                           :firefox
+                         else
+                           browser
+                         end
 
           caps = WebDriver::Remote::Capabilities.send(browser_name, opt)
 
@@ -185,16 +191,20 @@ module Selenium
           )
         end
 
-        def create_firefox_driver(marionette = false)
-          opt = marionette ? {} : {marionette: false}
-          caps = WebDriver::Remote::Capabilities.firefox(opt)
-          WebDriver::Firefox.path = ENV['FIREFOX_BINARY'] if ENV['FIREFOX_BINARY']
-
-          WebDriver::Driver.for :firefox, desired_capabilities: caps
+        def create_firefox_driver
+          WebDriver::Firefox::Binary.path = ENV['FIREFOX_BINARY'] if ENV['FIREFOX_BINARY']
+          WebDriver::Driver.for :firefox
         end
 
-        def create_marionette_driver
-          create_firefox_driver(true)
+        def create_ff_legacy_driver
+          unless ENV['FF_LEGACY_BINARY']
+            raise StandardError, "ENV['FF_LEGACY_BINARY'] must be set to test legacy firefox"
+          end
+          WebDriver::Firefox::Binary.path = ENV['FF_LEGACY_BINARY']
+
+          caps = WebDriver::Remote::Capabilities.firefox(marionette: false)
+
+          WebDriver::Driver.for :firefox, desired_capabilities: caps
         end
 
         def create_chrome_driver
@@ -207,7 +217,6 @@ module Selenium
           args = ENV['TRAVIS'] ? ['--no-sandbox'] : []
 
           WebDriver::Driver.for :chrome,
-                                native_events: native_events?,
                                 args: args
         end
 
@@ -218,8 +227,8 @@ module Selenium
         end
 
         def create_safari_driver
-          return WebDriver::Driver.for :safari unless ENV['timeout']
-          WebDriver::Driver.for :safari, timeout: Integer(ENV['timeout'])
+          WebDriver::Safari.driver_path = ENV['SAFARIDRIVER'] if ENV['SAFARIDRIVER']
+          WebDriver::Driver.for :safari
         end
 
         def keep_alive_client

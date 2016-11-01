@@ -59,23 +59,11 @@ module Selenium
         #
 
         class << self
-          def android(opts = {})
-            new({
-              browser_name: 'android',
-              platform: :android,
-              javascript_enabled: true,
-              rotatable: true,
-              takes_screenshot: true
-            }.merge(opts))
-          end
-
           def chrome(opts = {})
             new({
               browser_name: 'chrome',
               javascript_enabled: true,
-              css_selectors_enabled: true,
-              loggingPrefs: {browser: 'ALL',
-                             driver: 'ALL'}
+              css_selectors_enabled: true
             }.merge(opts))
           end
 
@@ -118,22 +106,6 @@ module Selenium
           end
           alias_method :ie, :internet_explorer
 
-          def iphone(opts = {})
-            new({
-              browser_name: 'iPhone',
-              platform: :mac,
-              javascript_enabled: true
-            }.merge(opts))
-          end
-
-          def ipad(opts = {})
-            new({
-              browser_name: 'iPad',
-              platform: :mac,
-              javascript_enabled: true
-            }.merge(opts))
-          end
-
           def phantomjs(opts = {})
             new({
               browser_name: 'phantomjs',
@@ -169,7 +141,7 @@ module Selenium
             caps.takes_screenshot      = data.delete('takesScreenshot')
             caps.native_events         = data.delete('nativeEvents')
             caps.rotatable             = data.delete('rotatable')
-            caps.proxy                 = Proxy.json_create(data['proxy']) if data.key?('proxy')
+            caps.proxy                 = Proxy.json_create(data['proxy']) if data.key?('proxy') && !data['proxy'].empty?
 
             # any remaining pairs will be added as is, with no conversion
             caps.merge!(data)

@@ -168,6 +168,7 @@ public class PageLoadingTest extends JUnit4TestBase {
     assertTrue("Took too long to refresh page: " + duration, duration < 5 * 1000);
   }
 
+  @Ignore(value = {CHROME})
   @Test
   public void testEagerStrategyShouldWaitForDocumentToBeLoaded() {
     initLocalDriver("eager");
@@ -339,7 +340,7 @@ public class PageLoadingTest extends JUnit4TestBase {
     // TODO(user): Set the SSL capability to true.
     driver.get(appServer.whereIsSecure("simpleTest.html"));
 
-    assertThat(driver.getTitle(), equalTo("Hello WebDriver"));
+    shortWait.until(titleIs("Hello WebDriver"));
   }
 
   @Ignore({CHROME, IE, PHANTOMJS, SAFARI, MARIONETTE})

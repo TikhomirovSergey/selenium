@@ -22,41 +22,32 @@ require_relative 'spec_helper'
 module Selenium
   module WebDriver
     describe Element do
-      before do
-        compliant_on browser: :safari do
-          sleep 0.5 # Some kind of race condition preventing initial navigation; only on safari
-        end
-      end
-
       it 'should click' do
         driver.navigate.to url_for('formPage.html')
         driver.find_element(id: 'imageButton').click
       end
 
-      compliant_on browser: [:chrome, :firefox] do
+      compliant_on browser: [:chrome, :ff_legacy] do
         it 'should raise if different element receives click' do
           driver.navigate.to url_for('click_tests/overlapping_elements.html')
           element_error = 'Other element would receive the click: <div id="over"><\/div>'
-          error = /Element is not clickable at point \(\d+, \d+\)\. #{element_error}/
+          error = /is not clickable at point \(\d+, \d+\)\. #{element_error}/
           expect { driver.find_element(id: 'contents').click }
             .to raise_error(Selenium::WebDriver::Error::UnknownError, error)
         end
       end
 
-      compliant_on browser: [:firefox] do
+      compliant_on browser: [:firefox, :ff_legacy] do
         it 'should not raise if element is only partially covered' do
           driver.navigate.to url_for('click_tests/overlapping_elements.html')
           expect { driver.find_element(id: 'other_contents').click }.not_to raise_error
         end
       end
 
-      # Marionette BUG - AutomatedTester: "known bug with execute script"
-      not_compliant_on browser: :marionette do
-        it 'should submit' do
-          driver.navigate.to url_for('formPage.html')
-          wait_for_element(id: 'submitButton')
-          driver.find_element(id: 'submitButton').submit
-        end
+      it 'should submit' do
+        driver.navigate.to url_for('formPage.html')
+        wait_for_element(id: 'submitButton')
+        driver.find_element(id: 'submitButton').submit
       end
 
       it 'should send string keys' do
@@ -65,7 +56,7 @@ module Selenium
         driver.find_element(id: 'working').send_keys('foo', 'bar')
       end
 
-      not_compliant_on browser: [:android, :iphone] do
+      not_compliant_on browser: :safari do
         it 'should send key presses' do
           driver.navigate.to url_for('javascriptPage.html')
           key_reporter = driver.find_element(id: 'keyReporter')
@@ -76,8 +67,7 @@ module Selenium
       end
 
       # PhantomJS on windows issue: https://github.com/ariya/phantomjs/issues/10993
-      # Marionette BUG - https://bugzilla.mozilla.org/show_bug.cgi?id=1260233
-      not_compliant_on browser: [:android, :iphone, :safari, :edge, :marionette, :phantomjs] do
+      not_compliant_on browser: [:safari, :edge, :phantomjs] do
         it 'should handle file uploads' do
           driver.navigate.to url_for('formPage.html')
 
@@ -109,23 +99,21 @@ module Selenium
         driver.find_element(id: 'withText').clear
       end
 
-      not_compliant_on browser: :android do
-        it 'should get and set selected' do
-          driver.navigate.to url_for('formPage.html')
+      it 'should get and set selected' do
+        driver.navigate.to url_for('formPage.html')
 
-          cheese = driver.find_element(id: 'cheese')
-          peas = driver.find_element(id: 'peas')
+        cheese = driver.find_element(id: 'cheese')
+        peas = driver.find_element(id: 'peas')
 
-          cheese.click
+        cheese.click
 
-          expect(cheese).to be_selected
-          expect(peas).not_to be_selected
+        expect(cheese).to be_selected
+        expect(peas).not_to be_selected
 
-          peas.click
+        peas.click
 
-          expect(peas).to be_selected
-          expect(cheese).not_to be_selected
-        end
+        expect(peas).to be_selected
+        expect(cheese).not_to be_selected
       end
 
       it 'should get enabled' do
@@ -138,39 +126,44 @@ module Selenium
         expect(driver.find_element(class: 'header').text).to eq('XHTML Might Be The Future')
       end
 
-      it 'should get displayed' do
-        driver.navigate.to url_for('xhtmlTest.html')
-        expect(driver.find_element(class: 'header')).to be_displayed
-      end
-
-      it 'should get location' do
-        driver.navigate.to url_for('xhtmlTest.html')
-        loc = driver.find_element(class: 'header').location
-
-        expect(loc.x).to be >= 1
-        expect(loc.y).to be >= 1
-      end
-
-      not_compliant_on browser: :iphone do
-        it 'should get location once scrolled into view' do
-          driver.navigate.to url_for('javascriptPage.html')
-          loc = driver.find_element(id: 'keyUp').location_once_scrolled_into_view
-
-          expect(loc.x).to be >= 1
-          expect(loc.y).to be >= 0 # can be 0 if scrolled to the top
+      not_compliant_on browser: :safari do
+        it 'should get displayed' do
+          driver.navigate.to url_for('xhtmlTest.html')
+          expect(driver.find_element(class: 'header')).to be_displayed
         end
       end
 
-      it 'should get size' do
-        driver.navigate.to url_for('xhtmlTest.html')
-        size = driver.find_element(class: 'header').size
+      # Remote w3c bug: https://github.com/SeleniumHQ/selenium/issues/2857
+      not_compliant_on driver: :remote, browser: :firefox do
+        context 'size and location' do
+          it 'should get current location' do
+            driver.navigate.to url_for('xhtmlTest.html')
+            loc = driver.find_element(class: 'header').location
 
-        expect(size.width).to be > 0
-        expect(size.height).to be > 0
+            expect(loc.x).to be >= 1
+            expect(loc.y).to be >= 1
+          end
+
+          it 'should get location once scrolled into view' do
+            driver.navigate.to url_for('javascriptPage.html')
+            loc = driver.find_element(id: 'keyUp').location_once_scrolled_into_view
+
+            expect(loc.x).to be >= 1
+            expect(loc.y).to be >= 0 # can be 0 if scrolled to the top
+          end
+
+          it 'should get size' do
+            driver.navigate.to url_for('xhtmlTest.html')
+            size = driver.find_element(class: 'header').size
+
+            expect(size.width).to be > 0
+            expect(size.height).to be > 0
+          end
+        end
       end
 
-      # Marionette - Waiting on implementation in httpd after spec section rewrite
-      not_compliant_on browser: [:safari, :marionette] do
+      # Firefox - "Actions Endpoint Not Yet Implemented"
+      not_compliant_on browser: [:safari, :firefox] do
         it 'should drag and drop' do
           driver.navigate.to url_for('dragAndDropTest.html')
 
@@ -185,17 +178,15 @@ module Selenium
         end
       end
 
-      not_compliant_on browser: :android do # android returns 'green'
-        it 'should get css property' do
-          driver.navigate.to url_for('javascriptPage.html')
-          element = driver.find_element(id: 'green-parent')
+      it 'should get css property' do
+        driver.navigate.to url_for('javascriptPage.html')
+        element = driver.find_element(id: 'green-parent')
 
-          style1 = element.css_value('background-color')
-          style2 = element.style('background-color') # backwards compatibility
+        style1 = element.css_value('background-color')
+        style2 = element.style('background-color') # backwards compatibility
 
-          acceptable = ['rgb(0, 128, 0)', '#008000', 'rgba(0,128,0,1)', 'rgba(0, 128, 0, 1)']
-          expect(acceptable).to include(style1, style2)
-        end
+        acceptable = ['rgb(0, 128, 0)', '#008000', 'rgba(0,128,0,1)', 'rgba(0, 128, 0, 1)']
+        expect(acceptable).to include(style1, style2)
       end
 
       it 'should know when two elements are equal' do
